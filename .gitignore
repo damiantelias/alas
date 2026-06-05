@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.npm
+
+# Build
+dist/
+build/
+.expo/
+
+# Environment — NUNCA subir al repo
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+coverage/
+
+# Misc
+*.tgz

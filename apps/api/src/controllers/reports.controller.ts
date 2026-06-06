@@ -35,7 +35,7 @@ export async function createReport(req: AuthRequest, res: Response) {
          AND status = 'pending'`,
       [reportedUserId]
     )
-    if (parseInt(recentReports.rows[0].count, 10) >= 3) {
+    if (parseInt(recentReports.rows[0].count as string, 10) >= 3) {
       await db.query(
         'UPDATE users SET is_active = false WHERE id = $1',
         [reportedUserId]

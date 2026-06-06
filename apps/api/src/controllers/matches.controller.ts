@@ -72,7 +72,7 @@ export async function getMatches(req: AuthRequest, res: Response) {
         isFromMe:  row.last_message_sender === userId,
         createdAt: row.last_message_at_exact,
       } : null,
-      unreadCount: parseInt(row.unread_count, 10),
+      unreadCount: parseInt(row.unread_count as string, 10),
     }))
 
     return res.json({ ok: true, data: { matches, total: matches.length } })

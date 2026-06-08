@@ -9,12 +9,12 @@ function generateTokens(userId: string, tier: string) {
   const accessToken = jwt.sign(
     { userId, subscriptionTier: tier },
     process.env.JWT_SECRET!,
-    { expiresIn: process.env.JWT_ACCESS_EXPIRES ?? '15m' }
+    { expiresIn: (process.env.JWT_ACCESS_EXPIRES ?? '15m') as jwt.SignOptions['expiresIn'] }
   )
   const refreshToken = jwt.sign(
     { userId },
     process.env.JWT_REFRESH_SECRET!,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES ?? '30d' }
+    { expiresIn: (process.env.JWT_REFRESH_EXPIRES ?? '30d') as jwt.SignOptions['expiresIn'] }
   )
   return { accessToken, refreshToken }
 }

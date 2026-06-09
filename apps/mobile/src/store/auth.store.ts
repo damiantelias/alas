@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import * as SecureStore from 'expo-secure-store'
-import { authApi, profileApi } from '../services/api'
+import { authApi, profileApi, notificationsApi } from '../services/api'
 
 interface User {
   id: string
@@ -90,6 +90,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    try { await notificationsApi.deleteToken() } catch {}
     try { await authApi.logout() } catch {}
     await Promise.all([
       SecureStore.deleteItemAsync('accessToken'),

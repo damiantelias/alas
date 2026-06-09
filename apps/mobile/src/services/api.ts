@@ -86,3 +86,8 @@ export const reportsApi = {
   create: (reportedUserId: string, reason: string, details?: string) =>
     api.post('/reports', { reportedUserId, reason, details }),
 }
+
+export const notificationsApi = {
+  registerToken: (token: string) => api.put('/notifications/push-token', { token }),
+  deleteToken:   ()              => api.delete('/notifications/push-token'),
+}

@@ -1,8 +1,11 @@
 import { Tabs } from 'expo-router'
 import { colors } from '../../src/utils/theme'
-import { Text, View } from 'react-native'
+import { Text } from 'react-native'
+import { useNotifications } from '../../src/hooks/useNotifications'
 
 export default function TabsLayout() {
+  useNotifications(true)
+
   return (
     <Tabs screenOptions={{
       headerShown: false,

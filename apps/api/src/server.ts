@@ -12,13 +12,14 @@ import { checkDbConnection } from './models/db'
 import { redis } from './models/redis'
 import { setupChatSocket } from './sockets/chat.socket'
 
-import authRoutes     from './routes/auth.routes'
-import profileRoutes  from './routes/profiles.routes'
-import discoverRoutes from './routes/discover.routes'
-import matchRoutes    from './routes/matches.routes'
-import likeRoutes     from './routes/likes.routes'
-import reportRoutes   from './routes/reports.routes'
-import uploadRoutes   from './routes/upload.routes'
+import authRoutes          from './routes/auth.routes'
+import profileRoutes       from './routes/profiles.routes'
+import discoverRoutes      from './routes/discover.routes'
+import matchRoutes         from './routes/matches.routes'
+import likeRoutes          from './routes/likes.routes'
+import reportRoutes        from './routes/reports.routes'
+import uploadRoutes        from './routes/upload.routes'
+import notificationsRoutes from './routes/notifications.routes'
 
 const app  = express()
 const http = createServer(app)
@@ -51,17 +52,18 @@ app.get('/health', async (_req, res) => {
   })
 })
 
-app.use('/api/auth',     authRoutes)
-app.use('/api/profiles', profileRoutes)
-app.use('/api/discover', discoverRoutes)
-app.use('/api/matches',  matchRoutes)
-app.use('/api/likes',    likeRoutes)
-app.use('/api/reports',  reportRoutes)
-app.use('/api/upload',   uploadRoutes)
+app.use('/api/auth',          authRoutes)
+app.use('/api/profiles',      profileRoutes)
+app.use('/api/discover',      discoverRoutes)
+app.use('/api/matches',       matchRoutes)
+app.use('/api/likes',         likeRoutes)
+app.use('/api/reports',       reportRoutes)
+app.use('/api/upload',        uploadRoutes)
+app.use('/api/notifications', notificationsRoutes)
 
 app.use((_req, res) => res.status(404).json({ ok: false, error: 'Ruta no encontrada' }))
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('❌ Error no controlado:', err)
+  console.error('Error no controlado:', err)
   res.status(500).json({ ok: false, error: 'Error interno del servidor' })
 })
 
@@ -75,13 +77,11 @@ async function start() {
     const dbOk = await checkDbConnection()
     if (!dbOk) throw new Error('No se pudo conectar a PostgreSQL')
     http.listen(PORT, () => {
-      console.log(`\n🚀 Alas API → http://localhost:${PORT}`)
-      console.log(`📡 Socket.io activo`)
-      console.log(`🔍 Health  → http://localhost:${PORT}/health`)
-      console.log(`🌍 Entorno → ${process.env.NODE_ENV ?? 'development'}\n`)
+      console.log('Alas API listening on port ' + PORT)
+      console.log('Env: ' + (process.env.NODE_ENV ?? 'development'))
     })
   } catch (err) {
-    console.error('❌ No se pudo arrancar:', err)
+    console.error('Startup error:', err)
     process.exit(1)
   }
 }

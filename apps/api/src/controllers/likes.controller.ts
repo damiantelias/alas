@@ -3,6 +3,7 @@ import { db } from '../models/db'
 import { redis } from '../models/redis'
 import { AuthRequest } from '../middleware/auth'
 import { v4 as uuidv4 } from 'uuid'
+import { sendPushNotification, getPushToken } from '../services/notifications.service'
 
 export async function createLike(req: AuthRequest, res: Response) {
   const fromUserId = req.userId!
@@ -84,6 +85,37 @@ export async function createLike(req: AuthRequest, res: Response) {
       timestamp: new Date().toISOString(),
     })
     await redis.publish('match:new', notification)
+
+    // Obtener nombres para el push
+    const namesResult = await db.query(
+      `SELECT p.user_id, p.display_name
+       FROM profiles p WHERE p.user_id = ANY($1::uuid[])`,
+      [[fromUserId, toUserId]]
+    )
+    const names: Record<string, string> = {}
+    for (const row of namesResult.rows) names[row.user_id] = row.display_name
+
+    // Push al usuario que recibió el like (toUserId)
+    const toToken = await getPushToken(db, toUserId)
+    if (toToken) {
+      await sendPushNotification({
+        to: toToken,
+        title: '¡Es un match! 🪶',
+        body: `Vos y ${names[fromUserId] ?? 'alguien'} se gustaron mutuamente`,
+        data: { type: 'new_match', matchId },
+      })
+    }
+
+    // Push a quien dio el like (fromUserId) también
+    const fromToken = await getPushToken(db, fromUserId)
+    if (fromToken) {
+      await sendPushNotification({
+        to: fromToken,
+        title: '¡Es un match! 🪶',
+        body: `Vos y ${names[toUserId] ?? 'alguien'} se gustaron mutuamente`,
+        data: { type: 'new_match', matchId },
+      })
+    }
 
     return res.status(201).json({
       ok: true,

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { db } from '../models/db'
 import { redis } from '../models/redis'
 import { v4 as uuidv4 } from 'uuid'
+import { sendPushNotification, getPushToken } from '../services/notifications.service'
 
 interface AuthSocket extends Socket {
   userId?: string
@@ -67,6 +68,36 @@ export function setupChatSocket(io: Server) {
 
         // Cache del último mensaje en Redis
         await redis.setex(`last_msg:${matchId}`, 60 * 60, JSON.stringify(message))
+
+        // Push al otro usuario del match (si no está en la sala)
+        const matchRow = await db.query(
+          'SELECT user_a_id, user_b_id FROM matches WHERE id = $1',
+          [matchId]
+        )
+        if (matchRow.rows[0]) {
+          const { user_a_id, user_b_id } = matchRow.rows[0]
+          const recipientId = user_a_id === userId ? user_b_id : user_a_id
+
+          // Solo enviar push si el recipiente no está conectado en la sala
+          const sockets = await io.in(`match:${matchId}`).fetchSockets()
+          const recipientConnected = sockets.some((s: any) => s.userId === recipientId)
+
+          if (!recipientConnected) {
+            const senderName = await db.query(
+              'SELECT display_name FROM profiles WHERE user_id = $1', [userId]
+            )
+            const name = senderName.rows[0]?.display_name ?? 'Alguien'
+            const token = await getPushToken(db, recipientId)
+            if (token) {
+              await sendPushNotification({
+                to: token,
+                title: `${name} te escribió 💬`,
+                body: content.length > 80 ? content.slice(0, 77) + '…' : content,
+                data: { type: 'new_message', matchId },
+              })
+            }
+          }
+        }
       } catch (err) {
         console.error('chat:message error:', err)
       }

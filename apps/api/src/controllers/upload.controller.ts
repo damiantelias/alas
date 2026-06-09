@@ -1,10 +1,13 @@
 import { Response } from 'express'
 import { AuthRequest } from '../middleware/auth'
+
+type UploadRequest = AuthRequest & { file?: Express.Multer.File }
+
 import { uploadPhoto, deletePhoto } from '../services/storage.service'
 import { db } from '../models/db'
 import { cache } from '../models/redis'
 
-export async function uploadProfilePhoto(req: AuthRequest, res: Response) {
+export async function uploadProfilePhoto(req: UploadRequest, res: Response) {
   const userId = req.userId!
 
   if (!req.file) {

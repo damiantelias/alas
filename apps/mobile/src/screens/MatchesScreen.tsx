@@ -1,3 +1,4 @@
+import { router } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import {
   View, Text, StyleSheet, FlatList,
@@ -14,7 +15,7 @@ interface Match {
   unreadCount: number
 }
 
-export default function MatchesScreen({ navigation }: any) {
+export default function MatchesScreen() {
   const [matches, setMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -58,7 +59,7 @@ export default function MatchesScreen({ navigation }: any) {
             contentContainerStyle={{ gap: spacing.md, paddingHorizontal: spacing.lg }}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.newMatchItem}
-                onPress={() => navigation.navigate('Chat', { match: item })}>
+                onPress={() => router.push({ pathname: '/chat', params: { matchData: JSON.stringify(item) } })}>
                 <View style={styles.newMatchAvatar}>
                   {item.otherUser.photo
                     ? <Image source={{ uri: item.otherUser.photo }} style={styles.avatarImg} />
@@ -91,7 +92,7 @@ export default function MatchesScreen({ navigation }: any) {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.chatRow}
-              onPress={() => navigation.navigate('Chat', { match: item })}
+              onPress={() => router.push({ pathname: '/chat', params: { matchData: JSON.stringify(item) } })}
             >
               <View style={styles.chatAvatar}>
                 {item.otherUser.photo

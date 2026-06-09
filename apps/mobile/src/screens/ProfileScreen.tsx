@@ -1,3 +1,4 @@
+import { router } from 'expo-router'
 import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
@@ -7,7 +8,7 @@ import { colors, spacing, radius } from '../utils/theme'
 import { useAuthStore } from '../store/auth.store'
 import { profileApi } from '../services/api'
 
-export default function ProfileScreen({ navigation }: any) {
+export default function ProfileScreen() {
   const { user, profile, logout } = useAuthStore()
   const [incognito, setIncognito] = useState(profile?.isIncognito ?? false)
   const [showDistance, setShowDistance] = useState(true)
@@ -56,7 +57,7 @@ export default function ProfileScreen({ navigation }: any) {
             <Text style={styles.location}>📍 {profile?.city ?? 'Sin ubicación'}</Text>
           </View>
           <TouchableOpacity style={styles.editBtn}
-            onPress={() => navigation.navigate('EditProfile')}>
+            onPress={() => router.push('/edit-profile')}>
             <Text style={styles.editBtnText}>Editar</Text>
           </TouchableOpacity>
         </View>

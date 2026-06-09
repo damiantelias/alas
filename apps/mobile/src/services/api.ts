@@ -90,4 +90,5 @@ export const reportsApi = {
 export const notificationsApi = {
   registerToken: (token: string) => api.put('/notifications/push-token', { token }),
   deleteToken:   ()              => api.delete('/notifications/push-token'),
+  getActivity:   ()              => api.get('/notifications/activity'),
 }

@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { colors, spacing, radius } from '../utils/theme'
 import { discoverApi, likesApi } from '../services/api'
+import { updateLocation } from '../hooks/useLocation'
 
 const SCREEN_W = Dimensions.get('window').width
 const SWIPE_THRESHOLD = SCREEN_W * 0.28
@@ -29,6 +30,7 @@ export default function DiscoverScreen() {
   const [index, setIndex]         = useState(0)
   const [loading, setLoading]     = useState(true)
   const [swiping, setSwiping]     = useState<'like' | 'pass' | null>(null)
+  const [needsLocation, setNeedsLocation] = useState(false)
 
   const pan      = useRef(new Animated.ValueXY()).current
   const rotation = pan.x.interpolate({ inputRange: [-SCREEN_W, SCREEN_W], outputRange: ['-18deg', '18deg'] })
@@ -39,35 +41,49 @@ export default function DiscoverScreen() {
 
   async function loadProfiles() {
     setLoading(true)
+    setNeedsLocation(false)
     try {
       const { data } = await discoverApi.getFeed({ radiusKm: 25, page: 1 })
       setProfiles(data.data.profiles)
       setIndex(0)
     } catch (err: any) {
+      const msg: string = err.response?.data?.error ?? ''
       if (err.response?.data?.upgradeRequired) {
         Alert.alert('Límite alcanzado', 'Actualizá a Plus para likes ilimitados.')
+      } else if (msg.includes('ubicación')) {
+        setNeedsLocation(true)
       }
     } finally {
       setLoading(false)
     }
   }
 
+  async function handleEnableLocation() {
+    setLoading(true)
+    const loc = await updateLocation()
+    if (loc) {
+      await loadProfiles()
+    } else {
+      setLoading(false)
+      Alert.alert('Permiso denegado', 'Alas necesita tu ubicación para mostrarte perfiles cercanos. Habilitala en Configuración.')
+    }
+  }
+
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
-    onPanResponderRelease: (_, gesture) => {
-      if (gesture.dx > SWIPE_THRESHOLD)  { swipe('like') }
-      else if (gesture.dx < -SWIPE_THRESHOLD) { swipe('pass') }
-      else {
-        Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start()
-        setSwiping(null)
-      }
-    },
     onPanResponderMove: (_, gesture) => {
       pan.setValue({ x: gesture.dx, y: gesture.dy })
       if (gesture.dx > 30) setSwiping('like')
       else if (gesture.dx < -30) setSwiping('pass')
       else setSwiping(null)
+    },
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dx > SWIPE_THRESHOLD)       { swipe('like') }
+      else if (gesture.dx < -SWIPE_THRESHOLD) { swipe('pass') }
+      else {
+        Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start()
+        setSwiping(null)
+      }
     },
   })
 
@@ -75,7 +91,7 @@ export default function DiscoverScreen() {
     const current = profiles[index]
     if (!current) return
 
-    // Animar la tarjeta fuera de pantalla
+    // Animar la tarjeta fuera de pantalla, luego avanzar al siguiente
     const toX = action === 'pass' ? -SCREEN_W * 1.5 : SCREEN_W * 1.5
     Animated.timing(pan, { toValue: { x: toX, y: 0 }, duration: 250, useNativeDriver: false }).start(() => {
       pan.setValue({ x: 0, y: 0 })
@@ -83,11 +99,14 @@ export default function DiscoverScreen() {
       setIndex(prev => prev + 1)
     })
 
-    // Llamar a la API
+    // Llamar a la API en paralelo (no bloquear la animación)
     try {
       const res = await likesApi.create(current.userId, action)
       if (res.data.data.match) {
-        Alert.alert('¡Es un match! 💜', `Vos y ${current.displayName} se gustaron mutuamente.`)
+        // Pequeño delay para que la animación termine antes del alert
+        setTimeout(() => {
+          Alert.alert('¡Es un match! 💜', `Vos y ${current.displayName} se gustaron mutuamente.`)
+        }, 300)
       }
     } catch (err: any) {
       if (err.response?.data?.upgradeRequired) {
@@ -99,6 +118,17 @@ export default function DiscoverScreen() {
   if (loading) return (
     <View style={styles.centered}>
       <ActivityIndicator size="large" color={colors.purple} />
+    </View>
+  )
+
+  if (needsLocation) return (
+    <View style={styles.centered}>
+      <Text style={{ fontSize: 40 }}>📍</Text>
+      <Text style={styles.emptyTitle}>Necesitamos tu ubicación</Text>
+      <Text style={styles.emptySub}>Alas usa tu ubicación para mostrarte personas cercanas. Solo la usamos mientras usás la app.</Text>
+      <TouchableOpacity style={styles.reloadBtn} onPress={handleEnableLocation}>
+        <Text style={styles.reloadText}>Habilitar ubicación</Text>
+      </TouchableOpacity>
     </View>
   )
 

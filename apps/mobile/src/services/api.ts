@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios'
 import * as SecureStore from 'expo-secure-store'
 
-const API_URL = 'https://dork-jalapeno-armful.ngrok-free.dev'
+const API_URL = 'https://alas-production-d959.up.railway.app'
 
 // Instancia principal de axios
 export const api: AxiosInstance = axios.create({

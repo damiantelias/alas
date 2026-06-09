@@ -8,7 +8,7 @@ import { createServer } from 'http'
 import { Server as SocketServer } from 'socket.io'
 import rateLimit from 'express-rate-limit'
 
-import { checkDbConnection } from './models/db'
+import { checkDbConnection, db } from './models/db'
 import { redis } from './models/redis'
 import { setupChatSocket } from './sockets/chat.socket'
 
@@ -20,6 +20,8 @@ import likeRoutes          from './routes/likes.routes'
 import reportRoutes        from './routes/reports.routes'
 import uploadRoutes        from './routes/upload.routes'
 import notificationsRoutes from './routes/notifications.routes'
+import subscriptionsRoutes from './routes/subscriptions.routes'
+import communityRoutes     from './routes/community.routes'
 
 const app  = express()
 const http = createServer(app)
@@ -60,6 +62,8 @@ app.use('/api/likes',         likeRoutes)
 app.use('/api/reports',       reportRoutes)
 app.use('/api/upload',        uploadRoutes)
 app.use('/api/notifications', notificationsRoutes)
+app.use('/api/subscriptions', subscriptionsRoutes)
+app.use('/api/community',     communityRoutes)
 
 app.use((_req, res) => res.status(404).json({ ok: false, error: 'Ruta no encontrada' }))
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -71,11 +75,39 @@ setupChatSocket(io)
 
 const PORT = Number(process.env.PORT) || 4000
 
+async function runMigrations() {
+  await db.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMPTZ;
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS community_posts (
+      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      content      TEXT NOT NULL,
+      type         VARCHAR(20) DEFAULT 'text',
+      likes_count  INTEGER DEFAULT 0,
+      is_deleted   BOOLEAN DEFAULT false,
+      created_at   TIMESTAMPTZ DEFAULT NOW()
+    );
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS community_post_likes (
+      id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      post_id  UUID NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+      user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(post_id, user_id)
+    );
+  `)
+  console.log('Migrations OK')
+}
+
 async function start() {
   try {
     await redis.connect()
     const dbOk = await checkDbConnection()
     if (!dbOk) throw new Error('No se pudo conectar a PostgreSQL')
+    await runMigrations()
     http.listen(PORT, () => {
       console.log('Alas API listening on port ' + PORT)
       console.log('Env: ' + (process.env.NODE_ENV ?? 'development'))

@@ -15,20 +15,37 @@ export async function createLike(req: AuthRequest, res: Response) {
   }
 
   try {
-    // Límite diario para free
-    if (tier === 'free' && action === 'like') {
-      const count = await db.query(
-        `SELECT COUNT(*) FROM likes
-         WHERE from_user_id = $1 AND action = 'like'
-           AND created_at > NOW() - INTERVAL '24 hours'`,
-        [fromUserId]
-      )
-      if (parseInt(count.rows[0].count, 10) >= 10) {
-        return res.status(403).json({
-          ok: false,
-          error: 'Límite de 10 likes diarios alcanzado. Actualizá a Plus.',
-          upgradeRequired: true,
-        })
+    // Límite diario para free: 10 likes, 3 super likes
+    if (tier === 'free') {
+      if (action === 'like') {
+        const count = await db.query(
+          `SELECT COUNT(*) FROM likes
+           WHERE from_user_id = $1 AND action = 'like'
+             AND created_at > NOW() - INTERVAL '24 hours'`,
+          [fromUserId]
+        )
+        if (parseInt(count.rows[0].count, 10) >= 10) {
+          return res.status(403).json({
+            ok: false,
+            error: 'Límite de 10 likes diarios alcanzado. Actualizá a Plus.',
+            upgradeRequired: true,
+          })
+        }
+      }
+      if (action === 'super') {
+        const superCount = await db.query(
+          `SELECT COUNT(*) FROM likes
+           WHERE from_user_id = $1 AND action = 'super'
+             AND created_at > NOW() - INTERVAL '24 hours'`,
+          [fromUserId]
+        )
+        if (parseInt(superCount.rows[0].count, 10) >= 3) {
+          return res.status(403).json({
+            ok: false,
+            error: 'Límite de 3 super likes diarios alcanzado. Actualizá a Plus para ilimitados.',
+            upgradeRequired: true,
+          })
+        }
       }
     }
 

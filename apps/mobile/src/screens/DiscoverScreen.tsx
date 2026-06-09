@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
   Animated, PanResponder, Dimensions, Image,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native'
+import { router } from 'expo-router'
 import { colors, spacing, radius } from '../utils/theme'
 import { discoverApi, likesApi } from '../services/api'
 import { updateLocation } from '../hooks/useLocation'
+import { useAuthStore } from '../store/auth.store'
 
 const SCREEN_W = Dimensions.get('window').width
 const SWIPE_THRESHOLD = SCREEN_W * 0.28
@@ -25,12 +27,30 @@ interface Profile {
   likedYou: boolean
 }
 
+interface Filters {
+  radiusKm: number
+  minAge: number
+  maxAge: number
+}
+
+const DEFAULT_FILTERS: Filters = { radiusKm: 25, minAge: 18, maxAge: 45 }
+const RADIUS_OPTIONS  = [5, 10, 25, 50, 100]
+const AGE_MIN_OPTIONS = [18, 20, 25, 30]
+const AGE_MAX_OPTIONS = [25, 30, 35, 40, 45, 55, 99]
+
 export default function DiscoverScreen() {
+  const { user }                 = useAuthStore()
+  const isPlus                   = user?.subscriptionTier !== 'free'
+
   const [profiles, setProfiles]   = useState<Profile[]>([])
   const [index, setIndex]         = useState(0)
   const [loading, setLoading]     = useState(true)
   const [swiping, setSwiping]     = useState<'like' | 'pass' | null>(null)
   const [needsLocation, setNeedsLocation] = useState(false)
+  const [lastProfile, setLastProfile] = useState<Profile | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters]     = useState<Filters>(DEFAULT_FILTERS)
+  const [pendingFilters, setPendingFilters] = useState<Filters>(DEFAULT_FILTERS)
 
   const pan      = useRef(new Animated.ValueXY()).current
   const rotation = pan.x.interpolate({ inputRange: [-SCREEN_W, SCREEN_W], outputRange: ['-18deg', '18deg'] })
@@ -39,18 +59,22 @@ export default function DiscoverScreen() {
 
   useEffect(() => { loadProfiles() }, [])
 
-  async function loadProfiles() {
+  async function loadProfiles(f: Filters = filters) {
     setLoading(true)
     setNeedsLocation(false)
     try {
-      const { data } = await discoverApi.getFeed({ radiusKm: 25, page: 1 })
+      const { data } = await discoverApi.getFeed({ radiusKm: f.radiusKm, minAge: f.minAge, maxAge: f.maxAge, page: 1 })
       setProfiles(data.data.profiles)
       setIndex(0)
+      setLastProfile(null)
     } catch (err: any) {
       const msg: string = err.response?.data?.error ?? ''
       if (err.response?.data?.upgradeRequired) {
-        Alert.alert('Límite alcanzado', 'Actualizá a Plus para likes ilimitados.')
-      } else if (msg.includes('ubicación')) {
+        Alert.alert('Limite alcanzado', 'Actualizate a Plus para likes ilimitados.', [
+          { text: 'Ver Plus', onPress: () => router.push('/upgrade') },
+          { text: 'Cancelar', style: 'cancel' },
+        ])
+      } else if (msg.includes('ubicacion') || msg.includes('ubicación')) {
         setNeedsLocation(true)
       }
     } finally {
@@ -65,8 +89,29 @@ export default function DiscoverScreen() {
       await loadProfiles()
     } else {
       setLoading(false)
-      Alert.alert('Permiso denegado', 'Alas necesita tu ubicación para mostrarte perfiles cercanos. Habilitala en Configuración.')
+      Alert.alert('Permiso denegado', 'Alas necesita tu ubicacion para mostrarte perfiles cercanos.')
     }
+  }
+
+  function applyFilters() {
+    setFilters(pendingFilters)
+    setShowFilters(false)
+    loadProfiles(pendingFilters)
+  }
+
+  function handleRewind() {
+    if (!lastProfile) return
+    if (!isPlus) {
+      Alert.alert('Funcion Plus', 'El rewind es una funcion de Alas Plus.', [
+        { text: 'Ver Plus', onPress: () => router.push('/upgrade') },
+        { text: 'Cancelar', style: 'cancel' },
+      ])
+      return
+    }
+    setProfiles(prev => [lastProfile, ...prev.slice(index)])
+    setIndex(0)
+    setLastProfile(null)
+    pan.setValue({ x: 0, y: 0 })
   }
 
   const panResponder = PanResponder.create({
@@ -91,7 +136,8 @@ export default function DiscoverScreen() {
     const current = profiles[index]
     if (!current) return
 
-    // Animar la tarjeta fuera de pantalla, luego avanzar al siguiente
+    setLastProfile(current)
+
     const toX = action === 'pass' ? -SCREEN_W * 1.5 : SCREEN_W * 1.5
     Animated.timing(pan, { toValue: { x: toX, y: 0 }, duration: 250, useNativeDriver: false }).start(() => {
       pan.setValue({ x: 0, y: 0 })
@@ -99,18 +145,21 @@ export default function DiscoverScreen() {
       setIndex(prev => prev + 1)
     })
 
-    // Llamar a la API en paralelo (no bloquear la animación)
     try {
       const res = await likesApi.create(current.userId, action)
       if (res.data.data.match) {
-        // Pequeño delay para que la animación termine antes del alert
         setTimeout(() => {
-          Alert.alert('¡Es un match! 💜', `Vos y ${current.displayName} se gustaron mutuamente.`)
+          Alert.alert('Es un match! 💜', 'Vos y ' + current.displayName + ' se gustaron mutuamente.')
         }, 300)
       }
     } catch (err: any) {
       if (err.response?.data?.upgradeRequired) {
-        Alert.alert('Límite de likes', 'Actualizá a Plus para continuar.')
+        setTimeout(() => {
+          Alert.alert('Limite alcanzado', err.response.data.error, [
+            { text: 'Ver Plus', onPress: () => router.push('/upgrade') },
+            { text: 'Cancelar', style: 'cancel' },
+          ])
+        }, 300)
       }
     }
   }
@@ -124,10 +173,10 @@ export default function DiscoverScreen() {
   if (needsLocation) return (
     <View style={styles.centered}>
       <Text style={{ fontSize: 40 }}>📍</Text>
-      <Text style={styles.emptyTitle}>Necesitamos tu ubicación</Text>
-      <Text style={styles.emptySub}>Alas usa tu ubicación para mostrarte personas cercanas. Solo la usamos mientras usás la app.</Text>
+      <Text style={styles.emptyTitle}>Necesitamos tu ubicacion</Text>
+      <Text style={styles.emptySub}>Alas usa tu ubicacion para mostrarte personas cercanas.</Text>
       <TouchableOpacity style={styles.reloadBtn} onPress={handleEnableLocation}>
-        <Text style={styles.reloadText}>Habilitar ubicación</Text>
+        <Text style={styles.reloadText}>Habilitar ubicacion</Text>
       </TouchableOpacity>
     </View>
   )
@@ -138,8 +187,8 @@ export default function DiscoverScreen() {
     <View style={styles.centered}>
       <Text style={{ fontSize: 40 }}>🔍</Text>
       <Text style={styles.emptyTitle}>Exploraste todo por ahora</Text>
-      <Text style={styles.emptySub}>Volvé más tarde o ampliá el radio de búsqueda</Text>
-      <TouchableOpacity style={styles.reloadBtn} onPress={loadProfiles}>
+      <Text style={styles.emptySub}>Volve mas tarde o amplia el radio de busqueda</Text>
+      <TouchableOpacity style={styles.reloadBtn} onPress={() => loadProfiles()}>
         <Text style={styles.reloadText}>Buscar de nuevo</Text>
       </TouchableOpacity>
     </View>
@@ -147,27 +196,27 @@ export default function DiscoverScreen() {
 
   return (
     <View style={styles.container}>
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.logo}>Alas</Text>
         <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.iconBtn}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => { setPendingFilters(filters); setShowFilters(true) }}>
             <Text style={styles.iconEmoji}>🔧</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/upgrade')}>
             <Text style={styles.iconEmoji}>⚡</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Tarjeta de perfil */}
+      {/* Tarjeta */}
       <Animated.View
         style={[styles.card, {
           transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate: rotation }]
         }]}
         {...panResponder.panHandlers}
       >
-        {/* Foto */}
         {current.photos?.[0]?.url ? (
           <Image source={{ uri: current.photos[0].url }} style={styles.cardPhoto} />
         ) : (
@@ -176,26 +225,22 @@ export default function DiscoverScreen() {
           </View>
         )}
 
-        {/* Overlay LIKE */}
         <Animated.View style={[styles.swipeLabel, styles.likeLabel, { opacity: likeOpacity }]}>
           <Text style={styles.swipeLabelText}>💜 ME GUSTA</Text>
         </Animated.View>
-
-        {/* Overlay PASS */}
         <Animated.View style={[styles.swipeLabel, styles.passLabel, { opacity: passOpacity }]}>
-          <Text style={styles.swipeLabelText}>✕ PASO</Text>
+          <Text style={styles.swipeLabelText}>X PASO</Text>
         </Animated.View>
 
-        {/* Info */}
         <View style={styles.cardInfo}>
           {current.isVerified && (
             <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>✓ verificada</Text>
+              <Text style={styles.verifiedText}>verificada</Text>
             </View>
           )}
           {current.likedYou && (
             <View style={styles.likedYouBadge}>
-              <Text style={styles.likedYouText}>💜 le gustás</Text>
+              <Text style={styles.likedYouText}>💜 le gustas</Text>
             </View>
           )}
           <Text style={styles.cardName}>{current.displayName}, {current.age}</Text>
@@ -210,8 +255,14 @@ export default function DiscoverScreen() {
         </View>
       </Animated.View>
 
-      {/* Botones de acción */}
+      {/* Botones */}
       <View style={styles.actions}>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.rewindBtn, !lastProfile && styles.actionBtnDisabled]}
+          onPress={handleRewind}
+        >
+          <Text style={styles.actionEmoji}>↩</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.actionBtn, styles.passBtn]} onPress={() => swipe('pass')}>
           <Text style={styles.actionEmoji}>✕</Text>
         </TouchableOpacity>
@@ -222,6 +273,71 @@ export default function DiscoverScreen() {
           <Text style={styles.actionEmoji}>♥</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal de filtros */}
+      <Modal visible={showFilters} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Filtros de busqueda</Text>
+
+            <Text style={styles.filterLabel}>Radio de busqueda</Text>
+            <View style={styles.optionRow}>
+              {RADIUS_OPTIONS.map(km => (
+                <TouchableOpacity
+                  key={km}
+                  style={[styles.optionBtn, pendingFilters.radiusKm === km && styles.optionBtnActive]}
+                  onPress={() => setPendingFilters(f => ({ ...f, radiusKm: km }))}
+                >
+                  <Text style={[styles.optionText, pendingFilters.radiusKm === km && styles.optionTextActive]}>
+                    {km}km
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.filterLabel}>Edad minima</Text>
+            <View style={styles.optionRow}>
+              {AGE_MIN_OPTIONS.map(age => (
+                <TouchableOpacity
+                  key={age}
+                  style={[styles.optionBtn, pendingFilters.minAge === age && styles.optionBtnActive]}
+                  onPress={() => setPendingFilters(f => ({ ...f, minAge: age }))}
+                >
+                  <Text style={[styles.optionText, pendingFilters.minAge === age && styles.optionTextActive]}>
+                    {age}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.filterLabel}>Edad maxima</Text>
+            <View style={styles.optionRow}>
+              {AGE_MAX_OPTIONS.map(age => (
+                <TouchableOpacity
+                  key={age}
+                  style={[styles.optionBtn, pendingFilters.maxAge === age && styles.optionBtnActive]}
+                  onPress={() => setPendingFilters(f => ({ ...f, maxAge: age }))}
+                >
+                  <Text style={[styles.optionText, pendingFilters.maxAge === age && styles.optionTextActive]}>
+                    {age === 99 ? '99+' : String(age)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowFilters(false)}>
+                <Text style={styles.cancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.applyBtn} onPress={applyFilters}>
+                <Text style={styles.applyBtnText}>Aplicar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   )
 }
@@ -243,7 +359,7 @@ const styles = StyleSheet.create({
   iconEmoji: { fontSize: 16 },
   card: {
     marginHorizontal: spacing.lg, borderRadius: radius.lg, overflow: 'hidden',
-    flex: 1, maxHeight: '68%', backgroundColor: colors.card,
+    flex: 1, maxHeight: '65%', backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.border,
   },
   cardPhoto:            { width: '100%', height: '65%' },
@@ -277,15 +393,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3,
   },
   tagText:    { fontSize: 11, color: colors.muted },
-  actions:    { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, padding: spacing.lg },
+  actions:    { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   actionBtn: {
-    width: 56, height: 56, borderRadius: radius.full,
+    width: 52, height: 52, borderRadius: radius.full,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1.5,
   },
+  actionBtnDisabled: { opacity: 0.3 },
+  rewindBtn:  { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: colors.amber, width: 42, height: 42 },
   passBtn:    { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: colors.border },
   likeBtn:    { backgroundColor: 'rgba(255,77,109,0.12)',  borderColor: colors.primary },
   superBtn:   { backgroundColor: 'rgba(168,85,247,0.12)', borderColor: colors.purple },
-  actionEmoji:{ fontSize: 22 },
+  actionEmoji:{ fontSize: 20 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginTop: spacing.md, textAlign: 'center' },
   emptySub:   { fontSize: 14, color: colors.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 },
   reloadBtn: {
@@ -294,4 +412,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl, paddingVertical: spacing.md,
   },
   reloadText: { color: colors.purple, fontWeight: '600' },
+  // Modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: spacing.lg, paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.lg,
+  },
+  modalTitle:   { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: spacing.lg },
+  filterLabel:  { fontSize: 11, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: spacing.sm, marginTop: spacing.md },
+  optionRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  optionBtn: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: radius.full, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.card2,
+  },
+  optionBtnActive: { borderColor: colors.purple, backgroundColor: 'rgba(168,85,247,0.12)' },
+  optionText:      { fontSize: 13, color: colors.muted },
+  optionTextActive:{ color: colors.purple, fontWeight: '600' },
+  modalActions:  { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
+  cancelBtn: {
+    flex: 1, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingVertical: 14, alignItems: 'center',
+  },
+  cancelBtnText: { color: colors.muted, fontWeight: '600' },
+  applyBtn: {
+    flex: 2, backgroundColor: colors.purple,
+    borderRadius: radius.md, paddingVertical: 14, alignItems: 'center',
+  },
+  applyBtnText: { color: colors.white, fontWeight: '700' },
 })

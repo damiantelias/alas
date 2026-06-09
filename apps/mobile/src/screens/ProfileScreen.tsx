@@ -157,7 +157,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
           {user?.subscriptionTier === 'free' && (
-            <TouchableOpacity style={styles.upgradeBtn}>
+            <TouchableOpacity style={styles.upgradeBtn} onPress={() => router.push('/upgrade')}>
               <Text style={styles.upgradeBtnText}>Plus →</Text>
             </TouchableOpacity>
           )}
@@ -289,37 +289,4 @@ const styles = StyleSheet.create({
   subCard: {
     backgroundColor: 'rgba(168,85,247,0.06)', borderWidth: 1,
     borderColor: 'rgba(168,85,247,0.15)', borderRadius: radius.md,
-    padding: spacing.md, flexDirection: 'row', alignItems: 'center',
-  },
-  subTitle:     { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 2 },
-  subSub:       { fontSize: 12, color: colors.muted },
-  upgradeBtn: {
-    backgroundColor: colors.purple, borderRadius: radius.sm,
-    paddingHorizontal: 14, paddingVertical: 7, marginLeft: 'auto',
-  },
-  upgradeBtnText: { color: colors.white, fontWeight: '700', fontSize: 12 },
-  sectionLabel: { fontSize: 11, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: spacing.sm },
-  settingsCard: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, overflow: 'hidden',
-  },
-  settingRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  settingLabel: { fontSize: 14, color: colors.text, marginBottom: 2 },
-  settingSub:   { fontSize: 11, color: colors.muted },
-  menuRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  menuLabel:    { fontSize: 14, color: colors.text },
-  menuArrow:    { fontSize: 18, color: colors.muted },
-  logoutBtn: {
-    backgroundColor: 'rgba(255,77,109,0.08)', borderWidth: 1,
-    borderColor: 'rgba(255,77,109,0.2)', borderRadius: radius.md,
-    padding: spacing.md, alignItems: 'center', marginTop: spacing.sm,
-  },
-  logoutText:   { color: colors.primary, fontWeight: '600', fontSize: 14 },
-  version:      { fontSize: 11, color: colors.muted, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xl },
-})
+    padding: spacing.md, flexDirectio

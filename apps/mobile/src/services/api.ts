@@ -92,3 +92,15 @@ export const notificationsApi = {
   deleteToken:   ()              => api.delete('/notifications/push-token'),
   getActivity:   ()              => api.get('/notifications/activity'),
 }
+
+export const subscriptionsApi = {
+  getStatus: ()                  => api.get('/subscriptions/status'),
+  upgrade:   (plan = 'plus')     => api.put('/subscriptions/upgrade', { plan }),
+  downgrade: ()                  => api.put('/subscriptions/downgrade'),
+}
+
+export const communityApi = {
+  getPosts:  (page = 1)          => api.get('/community/posts', { params: { page } }),
+  createPost:(content: string)   => api.post('/community/posts', { content }),
+  likePost:  (postId: string)    => api.post(`/community/posts/${postId}/like`),
+}

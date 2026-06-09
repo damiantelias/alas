@@ -2,16 +2,56 @@ import { router } from 'expo-router'
 import React, { useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Switch, Alert, Image,
+  TouchableOpacity, Switch, Alert, Image, ActivityIndicator,
 } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import { colors, spacing, radius } from '../utils/theme'
 import { useAuthStore } from '../store/auth.store'
 import { profileApi } from '../services/api'
 
 export default function ProfileScreen() {
-  const { user, profile, logout } = useAuthStore()
+  const { user, profile, setProfile, logout } = useAuthStore()
   const [incognito, setIncognito] = useState(profile?.isIncognito ?? false)
   const [showDistance, setShowDistance] = useState(true)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  async function handlePickPhoto() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      return Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para subir fotos.')
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [3, 4],
+      quality: 0.8,
+    })
+    if (result.canceled) return
+    const asset = result.assets[0]
+    setUploadingPhoto(true)
+    try {
+      const { data } = await profileApi.uploadPhoto(asset.uri, asset.mimeType ?? 'image/jpeg')
+      setProfile({ ...profile!, photos: data.data.photos })
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error ?? 'No se pudo subir la foto')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
+  async function handleDeletePhoto(url: string) {
+    Alert.alert('Eliminar foto', '¿Seguro que querés borrar esta foto?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        try {
+          const { data } = await profileApi.deletePhoto(url)
+          setProfile({ ...profile!, photos: data.data.photos })
+        } catch {
+          Alert.alert('Error', 'No se pudo eliminar la foto')
+        }
+      }},
+    ])
+  }
 
   async function toggleIncognito(val: boolean) {
     setIncognito(val)
@@ -46,8 +86,11 @@ export default function ProfileScreen() {
                   <Text style={{ fontSize: 36 }}>👤</Text>
                 </View>
             }
-            <TouchableOpacity style={styles.avatarEditBtn}>
-              <Text style={styles.avatarEditText}>+</Text>
+            <TouchableOpacity style={styles.avatarEditBtn} onPress={handlePickPhoto} disabled={uploadingPhoto}>
+              {uploadingPhoto
+                ? <ActivityIndicator size="small" color={colors.white} />
+                : <Text style={styles.avatarEditText}>+</Text>
+              }
             </TouchableOpacity>
           </View>
           <View style={styles.headerInfo}>

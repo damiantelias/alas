@@ -18,6 +18,7 @@ import discoverRoutes from './routes/discover.routes'
 import matchRoutes    from './routes/matches.routes'
 import likeRoutes     from './routes/likes.routes'
 import reportRoutes   from './routes/reports.routes'
+import uploadRoutes   from './routes/upload.routes'
 
 const app  = express()
 const http = createServer(app)
@@ -56,6 +57,7 @@ app.use('/api/discover', discoverRoutes)
 app.use('/api/matches',  matchRoutes)
 app.use('/api/likes',    likeRoutes)
 app.use('/api/reports',  reportRoutes)
+app.use('/api/upload',   uploadRoutes)
 
 app.use((_req, res) => res.status(404).json({ ok: false, error: 'Ruta no encontrada' }))
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

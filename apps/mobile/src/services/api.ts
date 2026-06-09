@@ -57,6 +57,12 @@ export const profileApi = {
   update: (data: Record<string, unknown>) => api.put('/profiles/me', data),
   getById: (id: string) => api.get(`/profiles/${id}`),
   updatePhotos: (photos: unknown[]) => api.put('/profiles/me/photos', { photos }),
+  uploadPhoto: (uri: string, mimeType = 'image/jpeg') => {
+    const form = new FormData()
+    form.append('photo', { uri, name: 'photo.jpg', type: mimeType } as any)
+    return api.post('/upload/photo', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  deletePhoto: (url: string) => api.delete('/upload/photo', { data: { url } }),
 }
 
 export const discoverApi = {

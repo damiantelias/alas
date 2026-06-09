@@ -43,27 +43,59 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoggedIn: false,
 
   loadSession: async () => {
-  set({ isLoading: false, isLoggedIn: false })
-},
+    set({ isLoading: true })
+    try {
+      const [accessToken, refreshToken, userStr] = await Promise.all([
+        SecureStore.getItemAsync('accessToken'),
+        SecureStore.getItemAsync('refreshToken'),
+        SecureStore.getItemAsync('userData'),
+      ])
+      if (!accessToken || !refreshToken) {
+        set({ isLoading: false, isLoggedIn: false })
+        return
+      }
+      const user = userStr ? JSON.parse(userStr) : null
+      // Verificar que el token sigue siendo válido
+      const { data } = await profileApi.getMe()
+      set({ isLoading: false, isLoggedIn: true, user, profile: data.data })
+    } catch {
+      // Token expirado o inválido → limpiar
+      await Promise.all([
+        SecureStore.deleteItemAsync('accessToken'),
+        SecureStore.deleteItemAsync('refreshToken'),
+        SecureStore.deleteItemAsync('userData'),
+      ])
+      set({ isLoading: false, isLoggedIn: false })
+    }
+  },
 
   login: async (email, password) => {
     const { data } = await authApi.login(email, password)
-    await SecureStore.setItemAsync('accessToken',  data.data.tokens.accessToken)
-    await SecureStore.setItemAsync('refreshToken', data.data.tokens.refreshToken)
+    await Promise.all([
+      SecureStore.setItemAsync('accessToken',  data.data.tokens.accessToken),
+      SecureStore.setItemAsync('refreshToken', data.data.tokens.refreshToken),
+      SecureStore.setItemAsync('userData',     JSON.stringify(data.data.user)),
+    ])
     set({ user: data.data.user, profile: data.data.profile, isLoggedIn: true })
   },
 
   register: async (email, password) => {
     const { data } = await authApi.register(email, password)
-    await SecureStore.setItemAsync('accessToken',  data.data.tokens.accessToken)
-    await SecureStore.setItemAsync('refreshToken', data.data.tokens.refreshToken)
+    await Promise.all([
+      SecureStore.setItemAsync('accessToken',  data.data.tokens.accessToken),
+      SecureStore.setItemAsync('refreshToken', data.data.tokens.refreshToken),
+      SecureStore.setItemAsync('userData',     JSON.stringify(data.data.user)),
+    ])
     set({ user: data.data.user, profile: null, isLoggedIn: true })
   },
 
   logout: async () => {
     try { await authApi.logout() } catch {}
-    await SecureStore.deleteItemAsync('accessToken')
-    await SecureStore.deleteItemAsync('refreshToken')
+    await Promise.all([
+      SecureStore.deleteItemAsync('accessToken'),
+      SecureStore.deleteItemAsync('refreshToken'),
+      SecureStore.deleteItemAsync('userData'),
+    ])
     set({ user: null, profile: null, isLoggedIn: false })
   },
 

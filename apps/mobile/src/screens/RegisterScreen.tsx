@@ -1,3 +1,4 @@
+import { router } from 'expo-router'
 import React, { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -5,6 +6,7 @@ import {
 } from 'react-native'
 import { colors, spacing, radius } from '../utils/theme'
 import { useAuthStore } from '../store/auth.store'
+import { profileApi } from '../services/api'
 
 const GENDER_OPTIONS = [
   'Mujer cis', 'Hombre cis', 'Mujer trans', 'Hombre trans',
@@ -23,7 +25,7 @@ const LOOKING_FOR_OPTIONS = [
   { value: 'casual',       label: 'Casual' },
 ]
 
-export default function RegisterScreen({ navigation }: any) {
+export default function RegisterScreen() {
   const [step, setStep]               = useState(1)  // 3 pasos
   const [email, setEmail]             = useState('')
   const [password, setPassword]       = useState('')
@@ -44,10 +46,25 @@ export default function RegisterScreen({ navigation }: any) {
   }
 
   async function handleFinish() {
+    if (lookingFor.length === 0) {
+      return Alert.alert('Elegí al menos una opción de qué buscás')
+    }
     setLoading(true)
     try {
+      // 1. Crear cuenta
       await register(email.trim().toLowerCase(), password)
-      // Después del registro redirige a completar perfil
+      // 2. Crear perfil con todos los datos recolectados
+      await profileApi.update({
+        displayName,
+        birthdate,
+        genderIdentity: gender,
+        sexualOrientation: orientation,
+        lookingFor,
+        city: '',
+        countryCode: 'AR',
+      })
+      // 3. Ir a la app
+      router.replace('/(tabs)')
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.error ?? 'No se pudo crear la cuenta')
     } finally {
@@ -88,7 +105,7 @@ export default function RegisterScreen({ navigation }: any) {
         <Text style={styles.btnText}>Siguiente →</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.btnGhost} onPress={() => router.back()}>
         <Text style={styles.btnGhostText}>Ya tengo cuenta</Text>
       </TouchableOpacity>
     </ScrollView>

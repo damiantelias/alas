@@ -8,7 +8,7 @@ import {
 import { colors, spacing, radius } from '../utils/theme'
 import { useAuthStore } from '../store/auth.store'
 
-export default function LoginScreen({ navigation }: any) {
+export default function LoginScreen() {
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [loading,  setLoading]  = useState(false)
@@ -81,7 +81,7 @@ export default function LoginScreen({ navigation }: any) {
 
         <TouchableOpacity
           style={styles.btnGhost}
-          onPress={() => navigation.navigate('Register')}
+          onPress={() => router.push('/register')}
         >
           <Text style={styles.btnGhostText}>
             ¿No tenés cuenta? <Text style={{ color: colors.purple }}>Registrate</Text>

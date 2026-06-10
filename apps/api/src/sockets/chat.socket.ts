@@ -108,6 +108,31 @@ export function setupChatSocket(io: Server) {
       socket.to(`match:${matchId}`).emit('chat:typing_start', { matchId, userId })
     })
 
+    // Eliminar mensaje
+    socket.on('chat:delete_message', async (payload: { matchId: string; messageId: string }) => {
+      try {
+        const { matchId, messageId } = payload
+
+        // Solo el autor puede eliminar
+        const result = await db.query(
+          `SELECT id FROM messages
+           WHERE id = $1 AND match_id = $2 AND sender_id = $3 AND deleted_at IS NULL`,
+          [messageId, matchId, userId]
+        )
+        if (!result.rows[0]) return
+
+        await db.query(
+          `UPDATE messages SET deleted_at = NOW() WHERE id = $1`,
+          [messageId]
+        )
+
+        // Notificar a todos en la sala
+        io.to(`match:${matchId}`).emit('chat:message_deleted', { messageId, matchId })
+      } catch (err) {
+        console.error('chat:delete_message error:', err)
+      }
+    })
+
     socket.on('disconnect', () => {
       console.log(`🔌 Socket desconectado: ${userId}`)
     })

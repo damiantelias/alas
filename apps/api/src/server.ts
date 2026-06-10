@@ -156,6 +156,11 @@ async function runMigrations() {
       ADD COLUMN IF NOT EXISTS resolved_at    TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS resolver_notes TEXT;
   `)
+  // deleted_at en messages
+  await db.query(`
+    ALTER TABLE messages
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+  `)
   console.log('Migrations OK')
 }
 

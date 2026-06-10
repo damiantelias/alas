@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TextInput,
   TouchableOpacity, KeyboardAvoidingView, Platform, Image,
-  ActivityIndicator, Alert, Animated,
+  ActivityIndicator, Alert, Animated, Modal, Pressable,
 } from 'react-native'
 import { io, Socket } from 'socket.io-client'
 import * as SecureStore from 'expo-secure-store'
@@ -20,9 +20,10 @@ interface Message {
   id: string
   senderId: string
   isFromMe: boolean
-  content: string
-  type: string
+  content: string | null
+  type: string       // 'text' | 'image' | 'audio' | 'deleted'
   createdAt: string
+  deletedAt?: string | null
 }
 
 export default function ChatScreen() {
@@ -30,16 +31,20 @@ export default function ChatScreen() {
   const match  = matchData ? JSON.parse(matchData as string) : null
   const userId = useAuthStore(s => s.user?.id)
 
-  const [messages,     setMessages]     = useState<Message[]>([])
-  const [input,        setInput]        = useState('')
-  const [isTyping,     setIsTyping]     = useState(false)
-  const [sendingImage, setSendingImage] = useState(false)
-  const [showReport,   setShowReport]   = useState(false)
-  const [recording,    setRecording]    = useState<Audio.Recording | null>(null)
-  const [isRecording,  setIsRecording]  = useState(false)
-  const [recordingSec, setRecordingSec] = useState(0)
-  const [playingId,    setPlayingId]    = useState<string | null>(null)
-  const [sound,        setSound]        = useState<Audio.Sound | null>(null)
+  const [messages,      setMessages]      = useState<Message[]>([])
+  const [input,         setInput]         = useState('')
+  const [isTyping,      setIsTyping]      = useState(false)
+  const [sendingMedia,  setSendingMedia]  = useState(false)
+  const [showReport,    setShowReport]    = useState(false)
+  const [recording,     setRecording]     = useState<Audio.Recording | null>(null)
+  const [isRecording,   setIsRecording]   = useState(false)
+  const [recordingSec,  setRecordingSec]  = useState(0)
+  const [playingId,     setPlayingId]     = useState<string | null>(null)
+  const [sound,         setSound]         = useState<Audio.Sound | null>(null)
+  // Context menu (long press)
+  const [ctxMsg,        setCtxMsg]        = useState<Message | null>(null)
+  const ctxAnim = useRef(new Animated.Value(0)).current
+
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const pulseAnim      = useRef(new Animated.Value(1)).current
   const socketRef      = useRef<Socket | null>(null)
@@ -58,20 +63,23 @@ export default function ChatScreen() {
     }
   }, [])
 
-  // Pulso animado durante grabación
   useEffect(() => {
     if (isRecording) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.3, duration: 500, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1,   duration: 500, useNativeDriver: true }),
-        ])
-      ).start()
+      Animated.loop(Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.3, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,   duration: 500, useNativeDriver: true }),
+      ])).start()
     } else {
-      pulseAnim.stopAnimation()
-      pulseAnim.setValue(1)
+      pulseAnim.stopAnimation(); pulseAnim.setValue(1)
     }
   }, [isRecording])
+
+  // Animar context menu
+  useEffect(() => {
+    Animated.spring(ctxAnim, {
+      toValue: ctxMsg ? 1 : 0, useNativeDriver: true, bounciness: 8,
+    }).start()
+  }, [ctxMsg])
 
   async function loadMessages() {
     try {
@@ -86,12 +94,18 @@ export default function ChatScreen() {
     const socket = io(API_URL, { auth: { token }, transports: ['websocket'] })
     socketRef.current = socket
     socket.emit('chat:join', match.matchId)
+
     socket.on('chat:new_message', (msg: Message) => {
       setMessages(prev => [...prev, { ...msg, isFromMe: msg.senderId === userId }])
       flatListRef.current?.scrollToEnd({ animated: true })
     })
     socket.on('chat:typing_start', ({ userId: tid }: any) => {
       if (tid !== userId) { setIsTyping(true); setTimeout(() => setIsTyping(false), 2500) }
+    })
+    socket.on('chat:message_deleted', ({ messageId }: { messageId: string }) => {
+      setMessages(prev => prev.map(m =>
+        m.id === messageId ? { ...m, type: 'deleted', content: null } : m
+      ))
     })
   }
 
@@ -113,13 +127,13 @@ export default function ChatScreen() {
     if (status !== 'granted') { Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.'); return }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 })
     if (result.canceled) return
-    setSendingImage(true)
+    setSendingMedia(true)
     try {
       const res = await profileApi.uploadChatFile(result.assets[0].uri, result.assets[0].mimeType ?? 'image/jpeg')
       socketRef.current?.emit('chat:message', { matchId: match.matchId, content: res.data.data.url, type: 'image' })
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.error ?? 'No se pudo enviar la imagen')
-    } finally { setSendingImage(false) }
+    } finally { setSendingMedia(false) }
   }
 
   async function startRecording() {
@@ -127,9 +141,7 @@ export default function ChatScreen() {
       const { status } = await Audio.requestPermissionsAsync()
       if (status !== 'granted') { Alert.alert('Permiso requerido', 'Necesitamos acceso al micrófono.'); return }
       const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY)
-      setRecording(rec)
-      setIsRecording(true)
-      setRecordingSec(0)
+      setRecording(rec); setIsRecording(true); setRecordingSec(0)
       recordingTimer.current = setInterval(() => setRecordingSec(s => s + 1), 1000)
     } catch (err) { console.error(err) }
   }
@@ -141,39 +153,57 @@ export default function ChatScreen() {
     try {
       await recording.stopAndUnloadAsync()
       const uri = recording.getURI()
-      setRecording(null)
-      setRecordingSec(0)
-      if (!uri || recordingSec < 1) return // ignorar grabaciones < 1 segundo
-      // Subir el audio
-      setSendingImage(true)
+      setRecording(null); setRecordingSec(0)
+      if (!uri || recordingSec < 1) return
+      setSendingMedia(true)
       const res = await profileApi.uploadChatFile(uri, 'audio/m4a')
       socketRef.current?.emit('chat:message', { matchId: match.matchId, content: res.data.data.url, type: 'audio' })
-    } catch (err: any) {
+    } catch {
       Alert.alert('Error', 'No se pudo enviar el audio')
-    } finally { setSendingImage(false) }
+    } finally { setSendingMedia(false) }
   }
 
   async function playAudio(url: string, msgId: string) {
-    if (playingId === msgId) {
-      await sound?.stopAsync()
-      setPlayingId(null)
-      return
-    }
+    if (playingId === msgId) { await sound?.stopAsync(); setPlayingId(null); return }
     await sound?.unloadAsync()
     try {
       const { sound: s } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true })
-      setSound(s)
-      setPlayingId(msgId)
-      s.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) setPlayingId(null)
-      })
+      setSound(s); setPlayingId(msgId)
+      s.setOnPlaybackStatusUpdate(st => { if (st.isLoaded && st.didJustFinish) setPlayingId(null) })
     } catch { Alert.alert('Error', 'No se pudo reproducir el audio') }
+  }
+
+  function handleLongPress(msg: Message) {
+    // Solo mensajes propios no eliminados
+    if (msg.isFromMe && msg.type !== 'deleted') setCtxMsg(msg)
+  }
+
+  function handleDeleteMessage() {
+    if (!ctxMsg) return
+    Alert.alert(
+      'Eliminar mensaje',
+      'Este mensaje se eliminará para todos. Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel', onPress: () => setCtxMsg(null) },
+        {
+          text: 'Eliminar para todos',
+          style: 'destructive',
+          onPress: () => {
+            socketRef.current?.emit('chat:delete_message', { matchId: match.matchId, messageId: ctxMsg.id })
+            // Optimistic update
+            setMessages(prev => prev.map(m =>
+              m.id === ctxMsg.id ? { ...m, type: 'deleted', content: null } : m
+            ))
+            setCtxMsg(null)
+          },
+        },
+      ]
+    )
   }
 
   function formatDuration(secs: number) {
     return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
   }
-
   function formatMsgTime(iso: string) {
     return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
   }
@@ -186,10 +216,24 @@ export default function ChatScreen() {
       <View>
         {showTime && <Text style={styles.timeLabel}>{formatMsgTime(item.createdAt)}</Text>}
         <View style={[styles.msgRow, item.isFromMe && styles.msgRowMe]}>
-          {item.type === 'image' ? (
-            <Image source={{ uri: item.content }} style={[styles.chatImage, item.isFromMe && styles.chatImageMe]} resizeMode="cover" />
+
+          {item.type === 'deleted' ? (
+            // Mensaje eliminado — igual que WhatsApp
+            <View style={[styles.bubble, item.isFromMe ? styles.bubbleMe : styles.bubbleThem, styles.bubbleDeleted]}>
+              <Text style={styles.deletedText}>🚫 Mensaje eliminado</Text>
+            </View>
+
+          ) : item.type === 'image' ? (
+            <Pressable onLongPress={() => handleLongPress(item)}>
+              <Image source={{ uri: item.content! }} style={[styles.chatImage, item.isFromMe && styles.chatImageMe]} resizeMode="cover" />
+            </Pressable>
+
           ) : item.type === 'audio' ? (
-            <TouchableOpacity style={[styles.audioBubble, item.isFromMe && styles.audioBubbleMe]} onPress={() => playAudio(item.content, item.id)}>
+            <Pressable
+              onPress={() => playAudio(item.content!, item.id)}
+              onLongPress={() => handleLongPress(item)}
+              style={[styles.audioBubble, item.isFromMe && styles.audioBubbleMe]}
+            >
               <Text style={styles.audioIcon}>{playingId === item.id ? '⏸' : '▶'}</Text>
               <View style={styles.audioWave}>
                 {[...Array(12)].map((_, i) => (
@@ -197,12 +241,17 @@ export default function ChatScreen() {
                 ))}
               </View>
               <Text style={[styles.audioDuration, item.isFromMe && styles.audioDurationMe]}>🎤</Text>
-            </TouchableOpacity>
+            </Pressable>
+
           ) : (
-            <View style={[styles.bubble, item.isFromMe ? styles.bubbleMe : styles.bubbleThem]}>
-              <Text style={[styles.bubbleText, item.isFromMe && styles.bubbleTextMe]}>{item.content}</Text>
-            </View>
+            // Texto
+            <Pressable onLongPress={() => handleLongPress(item)}>
+              <View style={[styles.bubble, item.isFromMe ? styles.bubbleMe : styles.bubbleThem]}>
+                <Text style={[styles.bubbleText, item.isFromMe && styles.bubbleTextMe]}>{item.content}</Text>
+              </View>
+            </Pressable>
           )}
+
         </View>
       </View>
     )
@@ -214,9 +263,12 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}><Text style={styles.backText}>‹</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>‹</Text>
+        </TouchableOpacity>
         <View style={styles.headerAvatar}>
           {match.otherUser.photo
             ? <Image source={{ uri: match.otherUser.photo }} style={styles.headerAvatarImg} />
@@ -225,7 +277,7 @@ export default function ChatScreen() {
         </View>
         <View style={styles.headerInfo}>
           <Text style={styles.headerName}>{match.otherUser.displayName}</Text>
-          <Text style={styles.headerStatus}>{isTyping ? '✍️ escribiendo...' : match.otherUser.city}</Text>
+          <Text style={styles.headerStatus}>{isTyping ? '✍️ escribiendo...' : match.otherUser.city ?? ''}</Text>
         </View>
         <TouchableOpacity style={styles.moreBtn} onPress={() => setShowReport(true)}>
           <Text style={styles.moreText}>⋯</Text>
@@ -258,20 +310,47 @@ export default function ChatScreen() {
         </View>
       ) : (
         <View style={styles.inputRow}>
-          <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage} disabled={sendingImage}>
-            {sendingImage ? <ActivityIndicator size="small" color={colors.purple} /> : <Text style={styles.attachIcon}>📎</Text>}
+          <TouchableOpacity style={styles.attachBtn} onPress={handlePickImage} disabled={sendingMedia}>
+            {sendingMedia
+              ? <ActivityIndicator size="small" color={colors.purple} />
+              : <Text style={styles.attachIcon}>📎</Text>
+            }
           </TouchableOpacity>
           <TextInput
-            style={styles.input} placeholder="Escribí un mensaje..." placeholderTextColor={colors.muted}
+            style={styles.input}
+            placeholder="Escribí un mensaje..."
+            placeholderTextColor={colors.muted}
             value={input} onChangeText={handleTyping} multiline maxLength={2000}
           />
           {input.trim()
-            ? <TouchableOpacity style={styles.sendBtn} onPress={handleSend}><Text style={styles.sendIcon}>↑</Text></TouchableOpacity>
+            ? <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
+                <Text style={styles.sendIcon}>↑</Text>
+              </TouchableOpacity>
             : <TouchableOpacity style={styles.micBtn} onPressIn={startRecording} onPressOut={stopRecording}>
                 <Text style={styles.micIcon}>🎤</Text>
               </TouchableOpacity>
           }
         </View>
+      )}
+
+      {/* Context menu — long press */}
+      {ctxMsg && (
+        <Pressable style={styles.ctxOverlay} onPress={() => setCtxMsg(null)}>
+          <Animated.View style={[styles.ctxMenu, {
+            transform: [{ scale: ctxAnim }],
+            opacity: ctxAnim,
+          }]}>
+            <TouchableOpacity style={styles.ctxItem} onPress={handleDeleteMessage}>
+              <Text style={styles.ctxItemIcon}>🗑</Text>
+              <Text style={styles.ctxItemText}>Eliminar para todos</Text>
+            </TouchableOpacity>
+            <View style={styles.ctxDivider} />
+            <TouchableOpacity style={styles.ctxItem} onPress={() => setCtxMsg(null)}>
+              <Text style={styles.ctxItemIcon}>✕</Text>
+              <Text style={[styles.ctxItemText, { color: colors.muted }]}>Cancelar</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Pressable>
       )}
 
       {match && (
@@ -288,25 +367,34 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   centered:  { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  // Header
   header: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.md, paddingTop: 52, paddingBottom: spacing.md,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: 4 }, backText: { fontSize: 28, color: colors.muted, lineHeight: 30 },
-  headerAvatar: {}, headerAvatarImg: { width: 36, height: 36, borderRadius: radius.full },
+  headerAvatar: {},
+  headerAvatarImg: { width: 36, height: 36, borderRadius: radius.full },
   avatarPlaceholder: { backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' },
   headerInfo: { flex: 1 },
   headerName: { fontSize: 15, fontWeight: '700', color: colors.text },
   headerStatus: { fontSize: 11, color: colors.teal },
   moreBtn: { padding: 4 }, moreText: { fontSize: 20, color: colors.muted, letterSpacing: 2 },
+  // Messages
   messagesList: { padding: spacing.md, gap: 2 },
   timeLabel: { fontSize: 11, color: colors.muted, textAlign: 'center', marginVertical: spacing.md },
-  msgRow: { flexDirection: 'row', marginVertical: 2 }, msgRowMe: { justifyContent: 'flex-end' },
+  msgRow: { flexDirection: 'row', marginVertical: 2 },
+  msgRowMe: { justifyContent: 'flex-end' },
   bubble: { maxWidth: '75%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
   bubbleThem: { backgroundColor: colors.card2, borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: 4 },
   bubbleMe: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  bubbleText: { fontSize: 14, color: colors.text, lineHeight: 20 }, bubbleTextMe: { color: colors.white },
+  bubbleText: { fontSize: 14, color: colors.text, lineHeight: 20 },
+  bubbleTextMe: { color: colors.white },
+  // Deleted
+  bubbleDeleted: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed' },
+  deletedText: { fontSize: 13, color: colors.muted, fontStyle: 'italic' },
+  // Image
   chatImage: { width: 200, height: 240, borderRadius: radius.md, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.border },
   chatImageMe: { borderBottomLeftRadius: radius.md, borderBottomRightRadius: 4 },
   // Audio
@@ -327,7 +415,7 @@ const styles = StyleSheet.create({
   sendIcon: { fontSize: 18, color: colors.white, fontWeight: '700' },
   micBtn: { width: 38, height: 38, borderRadius: radius.full, backgroundColor: colors.card2, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   micIcon: { fontSize: 18 },
-  // Recording bar
+  // Recording
   recordingBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: 'rgba(239,68,68,0.08)' },
   recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444' },
   recText: { flex: 1, color: colors.text, fontSize: 14 },
@@ -335,4 +423,11 @@ const styles = StyleSheet.create({
   recStopText: { color: colors.white, fontWeight: '700', fontSize: 13 },
   recCancelBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.card2, alignItems: 'center', justifyContent: 'center' },
   recCancelText: { color: colors.muted, fontSize: 16 },
+  // Context menu
+  ctxOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 100 },
+  ctxMenu: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: colors.border, paddingBottom: 32 },
+  ctxItem: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: spacing.md, paddingHorizontal: 24 },
+  ctxItemIcon: { fontSize: 20, width: 28, textAlign: 'center' },
+  ctxItemText: { fontSize: 15, color: colors.text, fontWeight: '500' },
+  ctxDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: spacing.md },
 })

@@ -104,7 +104,7 @@ export async function getMessages(req: AuthRequest, res: Response) {
     // Obtener mensajes paginados (más recientes primero)
     const offset = (page - 1) * limit
     const result = await db.query(
-      `SELECT id, sender_id, content, type, read_at, created_at
+      `SELECT id, sender_id, content, type, read_at, created_at, deleted_at
        FROM messages
        WHERE match_id = $1
        ORDER BY created_at DESC
@@ -124,10 +124,11 @@ export async function getMessages(req: AuthRequest, res: Response) {
       id:        row.id,
       senderId:  row.sender_id,
       isFromMe:  row.sender_id === userId,
-      content:   row.content,
-      type:      row.type,
+      content:   row.deleted_at ? null : row.content,
+      type:      row.deleted_at ? 'deleted' : row.type,
       readAt:    row.read_at,
       createdAt: row.created_at,
+      deletedAt: row.deleted_at,
     }))
 
     return res.json({

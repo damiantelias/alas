@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alas Admin</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f0a1a;--card:#1a1028;--card2:#231535;--border:#2e1f45;--primary:#a855f7;--teal:#2dd4bf;--red:#ef4444;--green:#22c55e;--text:#f0e6ff;--muted:#7c6a9a;--white:#fff}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;width:340px}
+.login-card h1{font-size:28px;margin-bottom:8px}
+.login-card p{color:var(--muted);margin-bottom:28px;font-size:14px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;margin-top:14px}
+input[type=text],input[type=password]{width:100%;padding:10px 12px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none}
+input:focus{border-color:var(--primary)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--primary);color:var(--white);width:100%;margin-top:20px}
+.btn-approve{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.btn-reject{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.btn-warn{background:rgba(250,204,21,.15);color:#facc15;border:1px solid rgba(250,204,21,.3)}
+.btn-dismiss{background:var(--card2);color:var(--muted);border:1px solid var(--border)}
+.btn-ban{background:rgba(239,68,68,.2);color:var(--red);border:1px solid var(--red)}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:6px}
+#login-error{color:var(--red);font-size:13px;margin-top:10px;display:none}
+#app{display:none}
+nav{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;height:56px;gap:0}
+.nav-logo{font-size:20px;font-weight:800;color:var(--primary);margin-right:32px}
+.nav-tab{padding:0 16px;height:100%;display:flex;align-items:center;font-size:14px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+.nav-tab.active{color:var(--text);border-bottom-color:var(--primary)}
+.nav-tab:hover{color:var(--text)}
+.badge{background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:6px}
+main{padding:24px;max-width:1100px;margin:0 auto}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.stat-label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.stat-value{font-size:32px;font-weight:800;color:var(--primary)}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.section{display:none}
+.section.active{display:block}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-header h2{font-size:18px;font-weight:700}
+.filter-tabs{display:flex;gap:8px}
+.filter-tab{padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;background:var(--card2);border:1px solid var(--border);color:var(--muted)}
+.filter-tab.active{background:var(--primary);color:var(--white);border-color:var(--primary)}
+.item-list{display:flex;flex-direction:column;gap:12px}
+.item-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+.item-card-row{display:flex;gap:16px;align-items:flex-start}
+.selfie-img{width:80px;height:80px;border-radius:10px;object-fit:cover;border:2px solid var(--border);flex-shrink:0}
+.item-info{flex:1}
+.item-name{font-size:15px;font-weight:700;margin-bottom:2px}
+.item-email{font-size:12px;color:var(--muted);margin-bottom:8px}
+.item-date{font-size:11px;color:var(--muted)}
+.item-reason{display:inline-block;background:rgba(168,85,247,.15);color:var(--primary);border:1px solid rgba(168,85,247,.3);border-radius:6px;padding:2px 8px;font-size:12px;margin-bottom:8px}
+.item-details{font-size:13px;color:var(--muted);margin-bottom:8px;font-style:italic}
+.item-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.notes-input{width:100%;padding:8px 10px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;margin-top:8px;outline:none}
+.resolved-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
+.resolved-badge.approved{background:rgba(34,197,94,.15);color:var(--green)}
+.resolved-badge.rejected{background:rgba(239,68,68,.15);color:var(--red)}
+.resolved-badge.resolved{background:rgba(124,106,154,.15);color:var(--muted)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);font-size:15px}
+.loading{text-align:center;padding:40px;color:var(--muted)}
+.report-pair{display:flex;gap:6px;align-items:center;margin-bottom:10px;font-size:13px;color:var(--muted)}
+.report-pair strong{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Alas</h1>
+    <p>Panel de administracion</p>
+    <label>Usuario</label>
+    <input type="text" id="admin-user" placeholder="admin" />
+    <label>Contrasena</label>
+    <input type="password" id="admin-pass" placeholder="......" />
+    <div id="login-error">Usuario o contrasena incorrectos</div>
+    <button class="btn btn-primary" onclick="doLogin()">Ingresar</button>
+  </div>
+</div>
+
+<div id="app">
+  <nav>
+    <span class="nav-logo">Alas</span>
+    <span class="nav-tab active" onclick="switchSection('dashboard',this)">Dashboard</span>
+    <span class="nav-tab" onclick="switchSection('verifications',this)">Verificaciones <span class="badge" id="vbadge">0</span></span>
+    <span class="nav-tab" onclick="switchSection('reports',this)">Reportes <span class="badge" id="rbadge">0</span></span>
+  </nav>
+  <main>
+    <div class="section active" id="section-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Usuarios totales</div><div class="stat-value" id="st-users">-</div><div class="stat-sub" id="st-users-7d"></div></div>
+        <div class="stat-card"><div class="stat-label">Matches activos</div><div class="stat-value" id="st-matches">-</div></div>
+        <div class="stat-card"><div class="stat-label">Reportes pendientes</div><div class="stat-value" id="st-reports">-</div><div class="stat-sub" id="st-reports-total"></div></div>
+        <div class="stat-card"><div class="stat-label">Verificaciones pendientes</div><div class="stat-value" id="st-verifs">-</div><div class="stat-sub" id="st-verifs-total"></div></div>
+      </div>
+      <p style="color:var(--muted);font-size:14px">Ultima actualizacion: <span id="last-refresh">-</span></p>
+    </div>
+
+    <div class="section" id="section-verifications">
+      <div class="section-header">
+        <h2>Verificaciones de perfil</h2>
+        <div class="filter-tabs">
+          <span class="filter-tab active" onclick="loadVerifications('pending',this)">Pendientes</span>
+          <span class="filter-tab" onclick="loadVerifications('approved',this)">Aprobadas</span>
+          <span class="filter-tab" onclick="loadVerifications('rejected',this)">Rechazadas</span>
+        </div>
+      </div>
+      <div class="item-list" id="verif-list"><div class="loading">Cargando...</div></div>
+    </div>
+
+    <div class="section" id="section-reports">
+      <div class="section-header">
+        <h2>Reportes de usuarios</h2>
+        <div class="filter-tabs">
+          <span class="filter-tab active" onclick="loadReports('pending',this)">Pendientes</span>
+          <span class="filter-tab" onclick="loadReports('resolved',this)">Resueltos</span>
+        </div>
+      </div>
+      <div class="item-list" id="report-list"><div class="loading">Cargando...</div></div>
+    </div>
+  </main>
+</div>
+
+<script>
+let credentials = '';
+
+async function apiFetch(path, opts) {
+  opts = opts || {};
+  const res = await fetch('/api/admin' + path, {
+    method: opts.method || 'GET',
+    headers: Object.assign({ 'Authorization': credentials, 'Content-Type': 'application/json' }, opts.headers || {}),
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if (res.status === 401) { showLogin(); return null; }
+  return res.json();
+}
+
+async function doLogin() {
+  const u = document.getElementById('admin-user').value.trim();
+  const p = document.getElementById('admin-pass').value;
+  if (!u || !p) return;
+  credentials = 'Basic ' + btoa(u + ':' + p);
+  const data = await apiFetch('/stats');
+  if (!data || !data.ok) {
+    document.getElementById('login-error').style.display = 'block';
+    credentials = '';
+    return;
+  }
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  renderStats(data.data);
+  loadVerifications('pending');
+  loadReports('pending');
+}
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  credentials = '';
+}
+
+function switchSection(name, el) {
+  document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('section-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'dashboard') refreshStats();
+}
+
+async function refreshStats() {
+  const data = await apiFetch('/stats');
+  if (data && data.ok) renderStats(data.data);
+}
+
+function renderStats(d) {
+  document.getElementById('st-users').textContent = d.users.total;
+  document.getElementById('st-users-7d').textContent = '+' + d.users.last7d + ' esta semana';
+  document.getElementById('st-matches').textContent = d.matches.total;
+  document.getElementById('st-reports').textContent = d.reports.pending;
+  document.getElementById('st-reports-total').textContent = d.reports.total + ' total';
+  document.getElementById('st-verifs').textContent = d.verifications.pending;
+  document.getElementById('st-verifs-total').textContent = d.verifications.total + ' total';
+  document.getElementById('vbadge').textContent = d.verifications.pending;
+  document.getElementById('rbadge').textContent = d.reports.pending;
+  document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString('es-AR');
+}
+
+async function loadVerifications(status, el) {
+  if (el) {
+    document.querySelectorAll('#section-verifications .filter-tab').forEach(function(t) { t.classList.remove('active'); });
+    el.classList.add('active');
+  }
+  const list = document.getElementById('verif-list');
+  list.innerHTML = '<div class="loading">Cargando...</div>';
+  const data = await apiFetch('/verifications?status=' + status);
+  if (!data) return;
+  if (!data.data.length) { list.innerHTML = '<div class="empty-state">Sin solicitudes</div>'; return; }
+  list.innerHTML = data.data.map(renderVerifCard).join('');
+}
+
+function renderVerifCard(v) {
+  const mainPhoto = v.photos && v.photos[0] ? v.photos[0].url : '';
+  const isPending = v.status === 'pending';
+  return '<div class="item-card" id="vc-' + v.user_id + '">' +
+    '<div class="item-card-row">' +
+    '<img class="selfie-img" src="' + v.selfie_url + '" onerror="this.style.display=\'none\'" />' +
+    (mainPhoto ? '<img class="selfie-img" src="' + mainPhoto + '" onerror="this.style.display=\'none\'" />' : '') +
+    '<div class="item-info">' +
+    '<div class="item-name">' + esc(v.display_name) + '</div>' +
+    '<div class="item-email">' + esc(v.email) + '</div>' +
+    '<div class="item-date">Enviado: ' + fmtDate(v.submitted_at) + '</div>' +
+    (v.reviewed_at ? '<div class="item-date">Revisado: ' + fmtDate(v.reviewed_at) + '</div>' : '') +
+    (!isPending ? '<span class="resolved-badge ' + v.status + '">' + (v.status === 'approved' ? 'Aprobada' : 'Rechazada') + '</span>' : '') +
+    (v.reviewer_notes ? '<div class="item-details">"' + esc(v.reviewer_notes) + '"</div>' : '') +
+    (isPending ? '<input class="notes-input" id="vnotes-' + v.user_id + '" placeholder="Notas opcionales..." />' +
+      '<div class="item-actions">' +
+      '<button class="btn btn-approve btn-sm" onclick="reviewVerif(\'' + v.user_id + '\',\'approve\')">Aprobar</button>' +
+      '<button class="btn btn-reject btn-sm" onclick="reviewVerif(\'' + v.user_id + '\',\'reject\')">Rechazar</button>' +
+      '</div>' : '') +
+    '</div></div></div>';
+}
+
+async function reviewVerif(userId, action) {
+  const notesEl = document.getElementById('vnotes-' + userId);
+  const notes = notesEl ? notesEl.value : '';
+  const card = document.getElementById('vc-' + userId);
+  card.style.opacity = '0.5';
+  const data = await apiFetch('/verifications/' + userId + '/review', { method: 'POST', body: { action: action, notes: notes } });
+  if (data && data.ok) { card.remove(); refreshStats(); }
+  else { card.style.opacity = '1'; alert('Error: ' + (data ? data.error : 'desconocido')); }
+}
+
+const REASON_LABELS = { fake_profile: 'Perfil falso', inappropriate: 'Contenido inapropiado', harassment: 'Acoso', underage: 'Menor de edad', hate_speech: 'Discurso de odio', other: 'Otro' };
+
+async function loadReports(status, el) {
+  if (el) {
+    document.querySelectorAll('#section-reports .filter-tab').forEach(function(t) { t.classList.remove('active'); });
+    el.classList.add('active');
+  }
+  const list = document.getElementById('report-list');
+  list.innerHTML = '<div class="loading">Cargando...</div>';
+  const data = await apiFetch('/reports?status=' + status);
+  if (!data) return;
+  if (!data.data.length) { list.innerHTML = '<div class="empty-state">Sin reportes</div>'; return; }
+  list.innerHTML = data.data.map(renderReportCard).join('');
+}
+
+function renderReportCard(r) {
+  const isPending = r.status === 'pending';
+  const targetPhoto = r.target_photos && r.target_photos[0] ? r.target_photos[0].url : '';
+  return '<div class="item-card" id="rc-' + r.id + '">' +
+    '<div class="item-card-row">' +
+    (targetPhoto ? '<img class="selfie-img" src="' + targetPhoto + '" onerror="this.style.display=\'none\'" />' : '') +
+    '<div class="item-info">' +
+    '<div class="item-name">Reportado: ' + esc(r.target_name) + '</div>' +
+    '<div class="item-email">' + esc(r.target_email) + '</div>' +
+    '<span class="item-reason">' + (REASON_LABELS[r.reason] || r.reason) + '</span>' +
+    (r.details ? '<div class="item-details">"' + esc(r.details) + '"</div>' : '') +
+    '<div class="report-pair">Por: <strong>' + esc(r.reporter_name) + '</strong> &middot; ' + fmtDate(r.created_at) + '</div>' +
+    (!isPending ? '<span class="resolved-badge resolved">Resuelto: ' + esc(r.resolver_notes || '') + '</span>' : '') +
+    (isPending ? '<input class="notes-input" id="rnotes-' + r.id + '" placeholder="Notas internas..." />' +
+      '<div class="item-actions">' +
+      '<button class="btn btn-dismiss btn-sm" onclick="resolveReport(\'' + r.id + '\',\'dismiss\')">Ignorar</button>' +
+      '<button class="btn btn-warn btn-sm" onclick="resolveReport(\'' + r.id + '\',\'warn\')">Advertir</button>' +
+      '<button class="btn btn-ban btn-sm" onclick="resolveReport(\'' + r.id + '\',\'ban\')">Banear</button>' +
+      '</div>' : '') +
+    '</div></div></div>';
+}
+
+async function resolveReport(reportId, action) {
+  if (action === 'ban' && !confirm('Banear este usuario?')) return;
+  const notesEl = document.getElementById('rnotes-' + reportId);
+  const notes = notesEl ? notesEl.value || action : action;
+  const card = document.getElementById('rc-' + reportId);
+  card.style.opacity = '0.5';
+  const data = await apiFetch('/reports/' + reportId + '/resolve', { method: 'POST', body: { action: action, notes: notes } });
+  if (data && data.ok) { card.remove(); refreshStats(); }
+  else { card.style.opacity = '1'; alert('Error: ' + (data ? data.error : 'desconocido')); }
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(iso) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+document.getElementById('admin-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>

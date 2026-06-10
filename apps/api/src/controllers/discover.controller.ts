@@ -103,6 +103,7 @@ export async function getDiscoverFeed(req: AuthRequest, res: Response) {
       JOIN users u ON u.id = p.user_id
       WHERE p.user_id != $1
         AND u.is_active = true
+        AND COALESCE(u.is_banned, false) = false
         AND p.is_incognito = false
         AND p.location IS NOT NULL
         AND p.photos != '[]'::jsonb

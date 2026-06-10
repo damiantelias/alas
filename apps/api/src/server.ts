@@ -24,6 +24,7 @@ import subscriptionsRoutes from './routes/subscriptions.routes'
 import communityRoutes     from './routes/community.routes'
 import verifyRoutes        from './routes/verify.routes'
 import blocksRoutes        from './routes/blocks.routes'
+import adminRoutes         from './routes/admin.routes'
 
 const app  = express()
 const http = createServer(app)
@@ -68,6 +69,8 @@ app.use('/api/subscriptions', subscriptionsRoutes)
 app.use('/api/community',     communityRoutes)
 app.use('/api/verify',        verifyRoutes)
 app.use('/api/blocks',        blocksRoutes)
+app.use('/api/admin',         adminRoutes)
+app.use('/admin', express.static(require('path').join(__dirname, '../public')))
 
 app.use((_req, res) => res.status(404).json({ ok: false, error: 'Ruta no encontrada' }))
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -136,6 +139,22 @@ async function runMigrations() {
       created_at  TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(blocker_id, blocked_id)
     );
+  `)
+  // Admin columns
+  await db.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT false;
+  `)
+  await db.query(`
+    ALTER TABLE verification_requests
+      ADD COLUMN IF NOT EXISTS submitted_at   TIMESTAMPTZ DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS reviewer_notes TEXT;
+  `)
+  await db.query(`
+    ALTER TABLE reports
+      ADD COLUMN IF NOT EXISTS status         VARCHAR(20) DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS resolved_at    TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS resolver_notes TEXT;
   `)
   console.log('Migrations OK')
 }

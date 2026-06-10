@@ -56,7 +56,7 @@ export default function ProfileScreen() {
   async function toggleIncognito(val: boolean) {
     setIncognito(val)
     try {
-      await profileApi.update({ isIncognito: val })
+      await profileApi.toggleIncognito(val)
     } catch {
       setIncognito(!val)
       Alert.alert('Error', 'No se pudo actualizar la configuración')

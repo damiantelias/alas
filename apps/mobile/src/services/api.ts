@@ -63,6 +63,11 @@ export const profileApi = {
     return api.post('/upload/photo', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
   deletePhoto: (url: string) => api.delete('/upload/photo', { data: { url } }),
+  toggleIncognito: (enabled: boolean) => api.put('/profiles/me/incognito', { enabled }),
+}
+
+export const likesReceivedApi = {
+  getReceived: () => api.get('/likes/received'),
 }
 
 export const discoverApi = {
@@ -90,17 +95,4 @@ export const reportsApi = {
 export const notificationsApi = {
   registerToken: (token: string) => api.put('/notifications/push-token', { token }),
   deleteToken:   ()              => api.delete('/notifications/push-token'),
-  getActivity:   ()              => api.get('/notifications/activity'),
-}
-
-export const subscriptionsApi = {
-  getStatus: ()                  => api.get('/subscriptions/status'),
-  upgrade:   (plan = 'plus')     => api.put('/subscriptions/upgrade', { plan }),
-  downgrade: ()                  => api.put('/subscriptions/downgrade'),
-}
-
-export const communityApi = {
-  getPosts:  (page = 1)          => api.get('/community/posts', { params: { page } }),
-  createPost:(content: string)   => api.post('/community/posts', { content }),
-  likePost:  (postId: string)    => api.post(`/community/posts/${postId}/like`),
-}
+  

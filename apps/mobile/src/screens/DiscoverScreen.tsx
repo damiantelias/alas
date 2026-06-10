@@ -201,6 +201,9 @@ export default function DiscoverScreen() {
       <View style={styles.header}>
         <Text style={styles.logo}>Alas</Text>
         <View style={styles.headerIcons}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/likes-received')}>
+            <Text style={styles.iconEmoji}>💜</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.iconBtn} onPress={() => { setPendingFilters(filters); setShowFilters(true) }}>
             <Text style={styles.iconEmoji}>🔧</Text>
           </TouchableOpacity>

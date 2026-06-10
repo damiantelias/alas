@@ -99,6 +99,10 @@ async function runMigrations() {
       UNIQUE(post_id, user_id)
     );
   `)
+  await db.query(`
+    ALTER TABLE profiles
+      ADD COLUMN IF NOT EXISTS is_incognito BOOLEAN DEFAULT false;
+  `)
   console.log('Migrations OK')
 }
 

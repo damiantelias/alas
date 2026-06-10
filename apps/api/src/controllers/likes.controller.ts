@@ -143,3 +143,77 @@ export async function createLike(req: AuthRequest, res: Response) {
     return res.status(500).json({ ok: false, error: 'Error interno' })
   }
 }
+
+// ── GET /likes/received ───────────────────────────────────────────────────────
+// Solo para usuarios Plus/Pro: ver quién te dio like (sin match aún)
+
+export async function getLikesReceived(req: AuthRequest, res: Response) {
+  const userId = req.userId!
+  const tier   = req.subscriptionTier ?? 'free'
+
+  if (tier === 'free') {
+    return res.status(403).json({
+      ok: false,
+      error: 'Esta función es exclusiva de Alas Plus.',
+      upgradeRequired: true,
+    })
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT
+         l.id            AS like_id,
+         l.action,
+         l.created_at,
+         p.user_id,
+         p.display_name,
+         p.bio,
+         p.photos,
+         p.city,
+         p.country_code,
+         p.is_profile_verified,
+         DATE_PART('year', AGE(p.birthdate::date)) AS age,
+         p.gender_identity
+       FROM likes l
+       JOIN profiles p ON p.user_id = l.from_user_id
+       JOIN users u ON u.id = l.from_user_id
+       WHERE l.to_user_id = $1
+         AND l.action IN ('like', 'super')
+         AND u.is_active = true
+         -- Excluir quienes ya son matches
+         AND l.from_user_id NOT IN (
+           SELECT CASE WHEN user_a_id = $1 THEN user_b_id ELSE user_a_id END
+           FROM matches WHERE (user_a_id = $1 OR user_b_id = $1) AND status = 'active'
+         )
+         -- Excluir a quienes ya pasaste
+         AND l.from_user_id NOT IN (
+           SELECT to_user_id FROM likes WHERE from_user_id = $1
+         )
+       ORDER BY l.created_at DESC
+       LIMIT 50`,
+      [userId]
+    )
+
+    const likes = result.rows.map(row => ({
+      likeId:        row.like_id,
+      action:        row.action,
+      createdAt:     row.created_at,
+      user: {
+        userId:        row.user_id,
+        displayName:   row.display_name,
+        age:           parseInt(row.age, 10),
+        bio:           row.bio,
+        photos:        row.photos,
+        city:          row.city,
+        countryCode:   row.country_code,
+        isVerified:    row.is_profile_verified,
+        genderIdentity: row.gender_identity,
+      },
+    }))
+
+    return res.json({ ok: true, data: { likes, total: likes.length } })
+  } catch (err) {
+    console.error('getLikesReceived error:', err)
+    return res.status(500).json({ ok: false, error: 'Error interno' })
+  }
+}

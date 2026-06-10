@@ -197,3 +197,26 @@ export async function updatePhotos(req: AuthRequest, res: Response) {
     return res.status(500).json({ ok: false, error: 'Error interno' })
   }
 }
+
+// ── PUT /profiles/me/incognito ────────────────────────────────────────────────
+
+export async function toggleIncognito(req: AuthRequest, res: Response) {
+  const userId = req.userId!
+  const { enabled } = req.body
+
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ ok: false, error: 'El campo enabled debe ser boolean' })
+  }
+
+  try {
+    await db.query(
+      'UPDATE profiles SET is_incognito = $1 WHERE user_id = $2',
+      [enabled, userId]
+    )
+    await cache.del(`profile:${userId}`)
+    return res.json({ ok: true, data: { isIncognito: enabled } })
+  } catch (err) {
+    console.error('toggleIncognito error:', err)
+    return res.status(500).json({ ok: false, error: 'Error interno' })
+  }
+}

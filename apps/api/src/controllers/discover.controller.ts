@@ -112,6 +112,12 @@ export async function getDiscoverFeed(req: AuthRequest, res: Response) {
         AND p.user_id NOT IN (
           SELECT to_user_id FROM likes WHERE from_user_id = $1
         )
+        -- Excluir bloqueados (en ambas direcciones)
+        AND p.user_id NOT IN (
+          SELECT blocked_id FROM blocked_users WHERE blocker_id = $1
+          UNION
+          SELECT blocker_id FROM blocked_users WHERE blocked_id = $1
+        )
         -- Excluir matches existentes
         AND p.user_id NOT IN (
           SELECT CASE WHEN user_a_id = $1 THEN user_b_id ELSE user_a_id END

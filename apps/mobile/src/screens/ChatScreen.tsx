@@ -9,6 +9,7 @@ import { io, Socket } from 'socket.io-client'
 import * as SecureStore from 'expo-secure-store'
 import * as ImagePicker from 'expo-image-picker'
 import { colors, spacing, radius } from '../utils/theme'
+import ReportBlockModal from '../components/ReportBlockModal'
 import { matchesApi, profileApi } from '../services/api'
 import { useAuthStore } from '../store/auth.store'
 
@@ -32,6 +33,7 @@ export default function ChatScreen() {
   const [input,         setInput]         = useState('')
   const [isTyping,      setIsTyping]      = useState(false)
   const [sendingImage,  setSendingImage]  = useState(false)
+  const [showReport,    setShowReport]    = useState(false)
   const socketRef       = useRef<Socket | null>(null)
   const flatListRef     = useRef<FlatList>(null)
   const typingTimeout   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -170,7 +172,7 @@ export default function ChatScreen() {
             {isTyping ? '✍️ escribiendo...' : match.otherUser.city}
           </Text>
         </View>
-        <TouchableOpacity style={styles.moreBtn}>
+        <TouchableOpacity style={styles.moreBtn} onPress={() => setShowReport(true)}>
           <Text style={styles.moreText}>⋯</Text>
         </TouchableOpacity>
       </View>
@@ -216,6 +218,15 @@ export default function ChatScreen() {
           <Text style={styles.sendIcon}>↑</Text>
         </TouchableOpacity>
       </View>
+      {match && (
+        <ReportBlockModal
+          visible={showReport}
+          onClose={() => setShowReport(false)}
+          targetUserId={match.otherUser.userId}
+          targetName={match.otherUser.displayName}
+          onBlocked={() => { setShowReport(false); router.replace('/(tabs)') }}
+        />
+      )}
     </KeyboardAvoidingView>
   )
 }

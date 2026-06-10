@@ -5,6 +5,7 @@ import {
   ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native'
 import { router } from 'expo-router'
+import ReportBlockModal from '../components/ReportBlockModal'
 import { colors, spacing, radius } from '../utils/theme'
 import { discoverApi, likesApi } from '../services/api'
 import { updateLocation } from '../hooks/useLocation'
@@ -51,6 +52,7 @@ export default function DiscoverScreen() {
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters]     = useState<Filters>(DEFAULT_FILTERS)
   const [pendingFilters, setPendingFilters] = useState<Filters>(DEFAULT_FILTERS)
+  const [reportTarget, setReportTarget]   = useState<{ id: string; name: string } | null>(null)
 
   const pan      = useRef(new Animated.ValueXY()).current
   const rotation = pan.x.interpolate({ inputRange: [-SCREEN_W, SCREEN_W], outputRange: ['-18deg', '18deg'] })
@@ -255,6 +257,9 @@ export default function DiscoverScreen() {
               <View key={lf} style={styles.tag}><Text style={styles.tagText}>{lf}</Text></View>
             ))}
           </View>
+          <TouchableOpacity style={styles.cardReport} onPress={() => current && setReportTarget({ id: current.userId, name: current.displayName })}>
+            <Text style={styles.cardReportText}>⋯</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 
@@ -276,6 +281,17 @@ export default function DiscoverScreen() {
           <Text style={styles.actionEmoji}>♥</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modal reporte/bloqueo */}
+      {reportTarget && (
+        <ReportBlockModal
+          visible={!!reportTarget}
+          onClose={() => setReportTarget(null)}
+          targetUserId={reportTarget.id}
+          targetName={reportTarget.name}
+          onBlocked={() => { setReportTarget(null); loadProfiles() }}
+        />
+      )}
 
       {/* Modal de filtros */}
       <Modal visible={showFilters} transparent animationType="slide">
@@ -396,6 +412,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3,
   },
   tagText:    { fontSize: 11, color: colors.muted },
+  cardReport: { alignSelf: 'flex-end', marginTop: 4, padding: 4 },
+  cardReportText: { fontSize: 18, color: colors.muted, letterSpacing: 2 },
   actions:    { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   actionBtn: {
     width: 52, height: 52, borderRadius: radius.full,

@@ -70,6 +70,21 @@ export const likesReceivedApi = {
   getReceived: () => api.get('/likes/received'),
 }
 
+export const verifyApi = {
+  request: (uri: string, mimeType = 'image/jpeg') => {
+    const form = new FormData()
+    form.append('selfie', { uri, name: 'selfie.jpg', type: mimeType } as any)
+    return api.post('/verify/request', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  getStatus: () => api.get('/verify/status'),
+}
+
+export const blocksApi = {
+  block:      (userId: string) => api.post(`/blocks/${userId}`),
+  unblock:    (userId: string) => api.delete(`/blocks/${userId}`),
+  getBlocked: ()               => api.get('/blocks'),
+}
+
 export const discoverApi = {
   getFeed: (params?: Record<string, unknown>) =>
     api.get('/discover', { params }),

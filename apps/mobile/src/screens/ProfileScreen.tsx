@@ -182,8 +182,8 @@ export default function ProfileScreen() {
 
         <Text style={styles.sectionLabel}>Cuenta</Text>
         <View style={styles.settingsCard}>
-          <TouchableOpacity style={styles.menuRow}>
-            <Text style={styles.menuLabel}>Verificar perfil</Text>
+          <TouchableOpacity style={styles.menuRow} onPress={() => router.push('/verification')}>
+            <Text style={styles.menuLabel}>Verificar perfil ✓</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuRow}>

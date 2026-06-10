@@ -10,10 +10,11 @@ const BUCKET = 'avatars'
 export async function uploadPhoto(
   userId: string,
   buffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  prefix = 'photos'
 ): Promise<string> {
   const ext = mimeType === 'image/png' ? 'png' : 'jpg'
-  const filename = `${userId}/${Date.now()}.${ext}`
+  const filename = `${prefix}/${userId}/${Date.now()}.${ext}`
 
   const { error } = await supabase.storage
     .from(BUCKET)
@@ -29,7 +30,6 @@ export async function uploadPhoto(
 }
 
 export async function deletePhoto(url: string): Promise<void> {
-  // Extraer el path del archivo desde la URL pública
   const urlObj = new URL(url)
   const pathParts = urlObj.pathname.split(`/storage/v1/object/public/${BUCKET}/`)
   if (pathParts.length < 2) return

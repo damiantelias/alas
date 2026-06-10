@@ -22,6 +22,8 @@ import uploadRoutes        from './routes/upload.routes'
 import notificationsRoutes from './routes/notifications.routes'
 import subscriptionsRoutes from './routes/subscriptions.routes'
 import communityRoutes     from './routes/community.routes'
+import verifyRoutes        from './routes/verify.routes'
+import blocksRoutes        from './routes/blocks.routes'
 
 const app  = express()
 const http = createServer(app)
@@ -64,6 +66,8 @@ app.use('/api/upload',        uploadRoutes)
 app.use('/api/notifications', notificationsRoutes)
 app.use('/api/subscriptions', subscriptionsRoutes)
 app.use('/api/community',     communityRoutes)
+app.use('/api/verify',        verifyRoutes)
+app.use('/api/blocks',        blocksRoutes)
 
 app.use((_req, res) => res.status(404).json({ ok: false, error: 'Ruta no encontrada' }))
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -102,6 +106,26 @@ async function runMigrations() {
   await db.query(`
     ALTER TABLE profiles
       ADD COLUMN IF NOT EXISTS is_incognito BOOLEAN DEFAULT false;
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS verification_requests (
+      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      selfie_url   TEXT NOT NULL,
+      status       VARCHAR(20) DEFAULT 'pending',
+      reviewed_at  TIMESTAMPTZ,
+      created_at   TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id)
+    );
+  `)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS blocked_users (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      blocker_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      blocked_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(blocker_id, blocked_id)
+    );
   `)
   console.log('Migrations OK')
 }

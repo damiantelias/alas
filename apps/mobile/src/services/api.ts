@@ -67,6 +67,13 @@ export const profileApi = {
   },
   deletePhoto: (url: string) => api.delete('/upload/photo', { data: { url } }),
   toggleIncognito: (enabled: boolean) => api.put('/profiles/me/incognito', { enabled }),
+  uploadChatFile: (uri: string, mimeType: string) => {
+    const isAudio = mimeType.startsWith('audio/')
+    const ext     = isAudio ? 'm4a' : 'jpg'
+    const form    = new FormData()
+    form.append('file', { uri, name: `attachment.${ext}`, type: mimeType } as any)
+    return api.post('/upload/chat', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
 }
 
 export const likesReceivedApi = {

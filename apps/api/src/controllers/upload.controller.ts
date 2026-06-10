@@ -98,3 +98,40 @@ export async function deleteProfilePhoto(req: AuthRequest, res: Response) {
     return res.status(500).json({ ok: false, error: 'Error al eliminar la foto' })
   }
 }
+
+export async function uploadChatAttachment(req: UploadRequest, res: Response) {
+  const userId = req.userId!
+
+  if (!req.file) {
+    return res.status(400).json({ ok: false, error: 'No se recibió ningún archivo' })
+  }
+
+  const allowedImages = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+  const allowedAudio  = ['audio/m4a', 'audio/mp4', 'audio/mpeg', 'audio/aac', 'audio/x-m4a']
+  const isImage = allowedImages.includes(req.file.mimetype)
+  const isAudio = allowedAudio.includes(req.file.mimetype)
+
+  if (!isImage && !isAudio) {
+    return res.status(400).json({ ok: false, error: 'Tipo de archivo no soportado' })
+  }
+
+  const maxSize = isImage ? 5 * 1024 * 1024 : 10 * 1024 * 1024
+  if (req.file.size > maxSize) {
+    return res.status(400).json({ ok: false, error: `El archivo no puede superar ${isImage ? '5' : '10'} MB` })
+  }
+
+  try {
+    if (isImage) {
+      const modResult = await moderateImage(req.file.buffer, req.file.mimetype)
+      if (!modResult.approved) {
+        return res.status(422).json({ ok: false, error: modResult.reason })
+      }
+    }
+
+    const url = await uploadPhoto(userId, req.file.buffer, req.file.mimetype, isAudio ? 'audio' : 'chat')
+    return res.status(201).json({ ok: true, data: { url } })
+  } catch (err) {
+    console.error('uploadChatAttachment error:', err)
+    return res.status(500).json({ ok: false, error: 'Error al subir el archivo' })
+  }
+}

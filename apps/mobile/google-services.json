@@ -1,0 +1,19 @@
+{
+  "_PLACEHOLDER": "Reemplazar con el archivo real de Firebase Console (Project Settings > Your apps > Android app > google-services.json)",
+  "project_info": {
+    "project_number": "YOUR_PROJECT_NUMBER",
+    "project_id": "YOUR_PROJECT_ID",
+    "storage_bucket": "YOUR_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:YOUR_PROJECT_NUMBER:android:YOUR_APP_ID",
+        "android_client_info": { "package_name": "com.alas.app" }
+      },
+      "api_key": [{ "current_key": "YOUR_API_KEY" }],
+      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+    }
+  ],
+  "configuration_version": "1"
+}

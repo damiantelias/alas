@@ -29,3 +29,6 @@ coverage/
 
 # Misc
 *.tgz
+
+# EAS / Firebase secrets
+apps/mobile/google-play-key.json

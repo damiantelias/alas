@@ -8,7 +8,13 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "build:android": "eas build --platform android",
-    "build:ios": "eas build --platform ios"
+    "build:ios": "eas build --platform ios",
+    "build:dev": "eas build --profile development --platform all",
+    "build:prev": "eas build --profile preview --platform all",
+    "build:prod": "eas build --profile production --platform all",
+    "submit:ios": "eas submit --platform ios",
+    "submit:android": "eas submit --platform android",
+    "update": "eas update --branch production --message \"$(git log -1 --pretty=%s)\""
   },
   "dependencies": {
     "@tanstack/react-query": "^5.40.0",
@@ -34,6 +40,7 @@
   },
   "devDependencies": {
     "@types/react": "~18.2.79",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "eas-cli": "^15.0.0"
   }
 }

@@ -7,7 +7,7 @@ import {
 import * as ImagePicker from 'expo-image-picker'
 import { colors, spacing, radius } from '../utils/theme'
 import { useAuthStore } from '../store/auth.store'
-import { profileApi } from '../services/api'
+import { profileApi, authApi } from '../services/api'
 
 export default function ProfileScreen() {
   const { user, profile, setProfile, logout } = useAuthStore()
@@ -61,6 +61,23 @@ export default function ProfileScreen() {
       setIncognito(!val)
       Alert.alert('Error', 'No se pudo actualizar la configuración')
     }
+  }
+
+  async function handleDeleteAccount() {
+    Alert.prompt(
+      'Eliminar cuenta',
+      'Esta acción es permanente. Ingresá tu contraseña para confirmar.',
+      async (password) => {
+        if (!password) return
+        try {
+          await authApi.deleteAccount(password)
+          logout()
+        } catch (err: any) {
+          Alert.alert('Error', err.response?.data?.error ?? 'No se pudo eliminar la cuenta')
+        }
+      },
+      'secure-text'
+    )
   }
 
   async function handleLogout() {
@@ -200,6 +217,10 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount}>
+          <Text style={styles.deleteBtnText}>Eliminar cuenta</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
@@ -289,4 +310,7 @@ const styles = StyleSheet.create({
   subCard: {
     backgroundColor: 'rgba(168,85,247,0.06)', borderWidth: 1,
     borderColor: 'rgba(168,85,247,0.15)', borderRadius: radius.md,
-    padding: spacing.md, flexDirectio
+    padding: spacing.md, flexDirecti
+  deleteBtn: { alignItems: 'center', paddingVertical: 14, marginBottom: 4 },
+  deleteBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '600' },
+})

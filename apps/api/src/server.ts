@@ -119,6 +119,16 @@ async function runMigrations() {
     );
   `)
   await db.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token      VARCHAR(64) NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at    TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `)
+  await db.query(`
     CREATE TABLE IF NOT EXISTS blocked_users (
       id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       blocker_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

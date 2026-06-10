@@ -119,3 +119,122 @@ export async function logout(req: Request, res: Response) {
   await redis.del(`refresh:${userId}`)
   return res.json({ ok: true, message: 'Sesión cerrada' })
 }
+
+// ── POST /auth/forgot-password ────────────────────────────────────────────────
+
+export async function forgotPassword(req: Request, res: Response) {
+  const { email } = req.body
+  if (!email) return res.status(400).json({ ok: false, error: 'Email requerido' })
+
+  try {
+    const result = await db.query('SELECT id FROM users WHERE email = $1 AND is_active = true', [email.toLowerCase()])
+    // Siempre responder OK para no revelar si el email existe
+    if (!result.rows[0]) {
+      return res.json({ ok: true, message: 'Si ese email existe, te enviamos un link.' })
+    }
+    const userId = result.rows[0].id
+
+    // Generar token seguro
+    const crypto = await import('crypto')
+    const token  = crypto.randomBytes(32).toString('hex')
+    const expires = new Date(Date.now() + 60 * 60 * 1000) // 1 hora
+
+    await db.query(
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [userId, token, expires]
+    )
+
+    // Enviar email con Resend
+    const { Resend } = await import('resend')
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resetUrl = `alas://reset-password?token=${token}`
+
+    await resend.emails.send({
+      from:    process.env.EMAIL_FROM ?? 'no-reply@alas.app',
+      to:      email.toLowerCase(),
+      subject: 'Recuperá tu contraseña — Alas',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#08080e;color:#ede9e0;padding:32px;border-radius:16px">
+          <h1 style="color:#a855f7;font-size:28px;margin:0 0 8px">🪶 Alas</h1>
+          <p style="color:#605b70;margin:0 0 24px">Recuperá tu contraseña</p>
+          <p>Recibimos una solicitud para restablecer tu contraseña. El link es válido por 1 hora.</p>
+          <a href="${resetUrl}" style="display:inline-block;background:#a855f7;color:#fff;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:700;margin:24px 0">
+            Restablecer contraseña
+          </a>
+          <p style="color:#605b70;font-size:12px">Si no pediste esto, ignorá este email.</p>
+        </div>
+      `,
+    })
+
+    return res.json({ ok: true, message: 'Si ese email existe, te enviamos un link.' })
+  } catch (err) {
+    console.error('forgotPassword error:', err)
+    return res.status(500).json({ ok: false, error: 'Error interno' })
+  }
+}
+
+// ── POST /auth/reset-password ─────────────────────────────────────────────────
+
+export async function resetPassword(req: Request, res: Response) {
+  const { token, newPassword } = req.body
+  if (!token || !newPassword) {
+    return res.status(400).json({ ok: false, error: 'Token y nueva contraseña requeridos' })
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 8 caracteres' })
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL`,
+      [token]
+    )
+    if (!result.rows[0]) {
+      return res.status(400).json({ ok: false, error: 'El link es inválido o ya expiró.' })
+    }
+    const { id: tokenId, user_id: userId } = result.rows[0]
+
+    const passwordHash = await bcrypt.hash(newPassword, 12)
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId])
+    await db.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [tokenId])
+
+    // Invalidar sesiones activas (opcional: eliminar refresh tokens en redis)
+    return res.json({ ok: true, message: 'Contraseña actualizada correctamente.' })
+  } catch (err) {
+    console.error('resetPassword error:', err)
+    return res.status(500).json({ ok: false, error: 'Error interno' })
+  }
+}
+
+// ── DELETE /auth/account ──────────────────────────────────────────────────────
+
+export async function deleteAccount(req: Request & { userId?: string }, res: Response) {
+  const userId = (req as any).userId
+  const { password } = req.body
+  if (!password) return res.status(400).json({ ok: false, error: 'Contraseña requerida para confirmar' })
+
+  try {
+    const result = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId])
+    if (!result.rows[0]) return res.status(404).json({ ok: false, error: 'Usuario no encontrado' })
+
+    const valid = await bcrypt.compare(password, result.rows[0].password_hash)
+    if (!valid) return res.status(401).json({ ok: false, error: 'Contraseña incorrecta' })
+
+    // Eliminar storage photos (no bloqueante)
+    const photosResult = await db.query('SELECT photos FROM profiles WHERE user_id = $1', [userId])
+    const photos: { url: string }[] = photosResult.rows[0]?.photos ?? []
+    const { deletePhoto } = await import('../services/storage.service')
+    await Promise.allSettled(photos.map(p => deletePhoto(p.url)))
+
+    // Eliminar usuario (cascada elimina perfil, matches, likes, mensajes, etc.)
+    await db.query('DELETE FROM users WHERE id = $1', [userId])
+
+    return res.json({ ok: true, message: 'Cuenta eliminada permanentemente.' })
+  } catch (err) {
+    console.error('deleteAccount error:', err)
+    return res.status(500).json({ ok: false, error: 'Error interno' })
+  }
+}

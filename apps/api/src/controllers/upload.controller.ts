@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth'
 type UploadRequest = AuthRequest & { file?: Express.Multer.File }
 
 import { uploadPhoto, deletePhoto } from '../services/storage.service'
+import { moderateImage } from '../services/moderation.service'
 import { db } from '../models/db'
 import { cache } from '../models/redis'
 
@@ -24,6 +25,12 @@ export async function uploadProfilePhoto(req: UploadRequest, res: Response) {
   }
 
   try {
+    // Moderar imagen con Sightengine
+    const modResult = await moderateImage(req.file.buffer, req.file.mimetype)
+    if (!modResult.approved) {
+      return res.status(422).json({ ok: false, error: modResult.reason })
+    }
+
     // Verificar cuántas fotos tiene actualmente
     const result = await db.query('SELECT photos FROM profiles WHERE user_id = $1', [userId])
     if (!result.rows[0]) {
